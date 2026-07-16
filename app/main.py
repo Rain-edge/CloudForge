@@ -1,9 +1,12 @@
+import os
+
 import structlog
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
-from app.core.database import engine
-from app.core.metrics import setup_metrics
+from app.core.config import settings
+from app.core.database import async_session, engine
+from app.core.metrics import refresh_task_metrics, setup_metrics
 from app.core.telemetry import setup_telemetry
 from app.middleware.logging import RequestIDMiddleware
 from app.models.task import Base  # noqa: F401  registers model metadata
@@ -14,16 +17,26 @@ from app.routers import health, tasks
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # Initial metrics refresh
+    await refresh_task_metrics(async_session)
     yield
 
 
 def create_app() -> FastAPI:
+    # Choose renderer: JSON for production/K8s (Loki), console for local dev
+    log_format = os.environ.get("CF_LOG_FORMAT", settings.log_format)
+    if log_format == "json":
+        renderer = structlog.processors.JSONRenderer()
+    else:
+        renderer = structlog.dev.ConsoleRenderer()
+
     structlog.configure(
         processors=[
             structlog.contextvars.merge_contextvars,
             structlog.processors.add_log_level,
             structlog.processors.TimeStamper(fmt="iso"),
-            structlog.dev.ConsoleRenderer(),
+            renderer,
         ],
         wrapper_class=structlog.make_filtering_bound_logger(20),  # INFO
         context_class=dict,

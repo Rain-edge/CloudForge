@@ -29,19 +29,21 @@
 
 ## 技术选型与理由
 
-| 领域 | 选型 | 理由 |
-|------|------|------|
-| 后端框架 | Python 3.10+, FastAPI | 异步高性能，自动 OpenAPI 文档，Pydantic 类型安全 |
-| 数据库 | PostgreSQL 14 | 成熟可靠，支持 JSONB，生态好 |
-| 缓存 | Redis 7 | 演示环境使用（Celery Broker 标记为后续） |
-| 容器化 | Docker multi-stage | 最终镜像 < 100MB，非 root 运行 |
-| 编排 | Kubernetes (k3s 本地/k3d 模拟) | 轻量但完整兼容 K8s API |
-| 包管理 | Helm | 一键部署，values 多环境管理 |
-| CI/CD | GitHub Actions + ArgoCD | Actions 负责 CI（测试+构建+推送），ArgoCD 负责 CD（GitOps 同步） |
-| 可观测性 | OpenTelemetry + Prometheus + Grafana + Loki + Tempo | 统一 Traces/Metrics/Logs 三支柱 |
-| 告警 | Alertmanager → Webhook | 错误率 > 5% 或 Pod 重启频率异常触发 |
-| 基础设施 | k3d 脚本 | 一条命令创建本地 K8s 集群 |
-| 韧性 | HPA, PDB, Readiness/Liveness Probe, Graceful Shutdown | K8s 原生自愈能力 |
+
+| 领域    | 选型                                                    | 理由                                              |
+| ----- | ----------------------------------------------------- | ----------------------------------------------- |
+| 后端框架  | Python 3.10+, FastAPI                                 | 异步高性能，自动 OpenAPI 文档，Pydantic 类型安全               |
+| 数据库   | PostgreSQL 14                                         | 成熟可靠，支持 JSONB，生态好                               |
+| 缓存    | Redis 7                                               | 演示环境使用（Celery Broker 标记为后续）                     |
+| 容器化   | Docker multi-stage                                    | 最终镜像 &lt; 100MB，非 root 运行                       |
+| 编排    | Kubernetes (k3s 本地/k3d 模拟)                            | 轻量但完整兼容 K8s API                                 |
+| 包管理   | Helm                                                  | 一键部署，values 多环境管理                               |
+| CI/CD | GitHub Actions + ArgoCD                               | Actions 负责 CI（测试+构建+推送），ArgoCD 负责 CD（GitOps 同步） |
+| 可观测性  | OpenTelemetry + Prometheus + Grafana + Loki + Tempo   | 统一 Traces/Metrics/Logs 三支柱                      |
+| 告警    | Alertmanager → Webhook                                | 错误率 &gt; 5% 或 Pod 重启频率异常触发                      |
+| 基础设施  | k3d 脚本                                                | 一条命令创建本地 K8s 集群                                 |
+| 韧性    | HPA, PDB, Readiness/Liveness Probe, Graceful Shutdown | K8s 原生自愈能力                                      |
+
 
 ## 架构概览
 
@@ -146,7 +148,7 @@ cloudforge/
 
 ### M2: 容器化与 CI
 
-- [ ] Docker 多阶段构建，镜像 < 100MB
+- [ ] Docker 多阶段构建，镜像 &lt; 100MB
 - [ ] GitHub Actions 在 push 时自动跑测试
 - [ ] 测试通过后自动构建镜像并推送 Docker Hub
 - [ ] 支持 linux/amd64 和 linux/arm64 多架构
@@ -164,7 +166,7 @@ cloudforge/
 - [ ] Prometheus 采集应用指标（/metrics endpoint, ServiceMonitor）
 - [ ] Grafana 看板导入后可视化（2 个预置 Dashboard JSON）
 - [ ] Loki + Promtail 采集日志，Tempo 接收 Traces
-- [ ] Alertmanager 规则：错误率 > 5%、高延迟、Pod 频繁重启
+- [ ] Alertmanager 规则：错误率 &gt; 5%、高延迟、Pod 频繁重启
 
 ### M5: 韧性验证
 

@@ -42,19 +42,22 @@ podDisruptionBudget:
 # Application config
 config:
   logLevel: "INFO"
+  logFormat: "json"
   otelExporterOtlpEndpoint: "http://tempo:4317"
 
-# External services
+# External services (Bitnami subcharts)
 postgresql:
-  host: postgresql
-  port: 5432
-  database: cloudforge
-  username: cloudforge
-  password: cloudforge
+  enabled: true
+  auth:
+    database: cloudforge
+    username: cloudforge
+    password: cloudforge
 
 redis:
-  host: redis-master
-  port: 6379
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: false
 
 # Secrets (demo-only; use Sealed Secrets for production)
 secrets:
@@ -75,3 +78,7 @@ observability:
     enabled: true
   prometheusRule:
     enabled: true
+
+# Grafana dashboard provisioning (requires kube-prometheus-stack with sidecar)
+grafanaDashboard:
+  enabled: true

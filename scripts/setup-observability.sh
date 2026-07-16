@@ -11,6 +11,10 @@ helm repo update
 helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
   --namespace monitoring --create-namespace \
   --set grafana.adminPassword=admin \
+  --set grafana.sidecar.dashboards.enabled=true \
+  --set grafana.sidecar.dashboards.label=grafana_dashboard \
+  --set grafana.sidecar.dashboards.labelValue=1 \
+  --set grafana.sidecar.dashboards.searchNamespace=ALL \
   --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false \
   --wait
 

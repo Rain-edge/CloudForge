@@ -1,0 +1,14 @@
+{{- if .Values.grafanaDashboard.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "cloudforge.fullname" . }}-dashboards
+  labels:
+    {{- include "cloudforge.labels" . | nindent 4 }}
+    grafana_dashboard: "1"
+data:
+  cloudforge-overview.json: |
+{{ .Files.Get "dashboards/cloudforge-overview.json" | indent 4 }}
+  cloudforge-k8s.json: |
+{{ .Files.Get "dashboards/cloudforge-k8s.json" | indent 4 }}
+{{- end }}

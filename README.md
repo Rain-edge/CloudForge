@@ -41,24 +41,20 @@ open http://localhost:8000/docs
 ```bash
 pip install -e ".[dev]"
 pytest app/tests -v
-# 10 passed
+# 14 passed
 ```
 
-### 3. 部署到 Kubernetes
+### 3. 一键部署到 Kubernetes
 
 ```bash
 # 创建本地 k3d 集群
 bash scripts/setup-k3d.sh
 
-# 安装可观测性组件
+# 安装可观测性组件（Prometheus + Grafana + Loki + Tempo）
 bash scripts/setup-observability.sh
 
-# 安装基础设施依赖
-helm install postgresql oci://registry-1.docker.io/bitnamicharts/postgresql \
-  --set auth.database=cloudforge --set auth.username=cloudforge
-helm install redis oci://registry-1.docker.io/bitnamicharts/redis
-
-# 部署 CloudForge
+# 一键部署 CloudForge（含 PostgreSQL + Redis 依赖）
+helm dependency update ./chart
 helm install cloudforge ./chart
 
 # 暴露服务
@@ -84,7 +80,7 @@ kubectl apply -f argocd/cloudforge-app.yaml
 | 后端 | Python 3.11, FastAPI | 异步高性能，自动 OpenAPI 文档 |
 | 数据库 | PostgreSQL 14 | 成熟可靠，JSONB 支持 |
 | 缓存 | Redis 7 | 高性能缓存（预留为 Celery Broker） |
-| 容器化 | Docker multi-stage | 镜像 < 100MB，非 root 运行 |
+| 容器化 | Docker multi-stage | 最终镜像 < 100MB (alpine runtime)，非 root 运行 |
 | 编排 | Kubernetes (k3s/k3d) | 轻量但完整兼容 K8s API |
 | 包管理 | Helm | 一键部署，多环境 values 管理 |
 | CI/CD | GitHub Actions + ArgoCD | CI 负责测试构建推送，CD 负责 GitOps 同步 |
@@ -102,13 +98,29 @@ kubectl apply -f argocd/cloudforge-app.yaml
 # Grafana（默认 admin/admin）
 kubectl port-forward -n monitoring svc/monitoring-grafana 3000:80
 
+# Tempo（Traces）
+kubectl port-forward -n monitoring svc/tempo 16686:16686
+
 # Jaeger（本地开发 Trace 查看）
 docker run -d -p 16686:16686 -p 4317:4317 jaegertracing/all-in-one
 ```
 
-预置 Dashboard：
-- `dashboards/cloudforge-overview.json` — 应用级：QPS、延迟、错误率
-- `dashboards/cloudforge-k8s.json` — 集群级：CPU、内存、副本数、重启次数
+### 预置 Grafana Dashboard
+
+两个预置 Dashboard 通过 Helm 部署时自动导入 Grafana（利用 kube-prometheus-stack 的 sidecar）：
+
+- `cloudforge-overview` — **应用级**：QPS、错误率（5xx 占比）、p95 延迟、状态码分布
+- `cloudforge-k8s` — **集群级**：CPU 使用率、内存占用、副本数（desired vs available）、Pod 重启频率
+
+手动导入：从 `dashboards/` 目录上传 JSON 文件到 Grafana UI（Dashboards → Import）。
+
+### 日志-Trace 关联
+
+应用日志在 K8s 环境输出 JSON 格式，每条日志包含 `trace_id` 和 `span_id` 字段。在 Grafana 中：
+
+1. Loki 自动采集容器 stdout（通过 Promtail）
+2. 点击日志行中的 `trace_id` → Grafana 自动跳转到 Tempo 查看完整 Trace
+3. 本地开发使用 `CF_LOG_FORMAT=console`（可读格式），K8s 默认 `CF_LOG_FORMAT=json`
 
 ---
 
@@ -156,18 +168,19 @@ cloudforge/
 │   ├── schemas/                # Pydantic DTO
 │   ├── routers/                # API 路由（health, tasks）
 │   ├── middleware/             # RequestID, structlog, trace_id 注入
-│   └── tests/                  # pytest + httpx
+│   └── tests/                  # pytest + httpx (14 tests: health, tasks, metrics, logging)
 ├── alembic/                    # 数据库迁移（alembic）
 │   ├── versions/
 │   └── env.py
 ├── chart/                      # Helm Chart
-│   ├── templates/              # Deployment, Service, Ingress, HPA, PDB...
+│   ├── templates/              # 15 templates (Deployment, Service, Ingress, HPA, PDB, Grafana CM...)
+│   ├── dashboards/             # Grafana 看板 JSON（打包进 ConfigMap）
 │   └── values.yaml
 ├── argocd/                     # ArgoCD Application 定义
-├── dashboards/                 # Grafana 看板 JSON
-├── scripts/                    # k3d 集群、可观测性安装、压测脚本
-├── docker/                     # Dockerfile（多阶段构建）
-├── .github/workflows/          # GitHub Actions CI
+├── dashboards/                 # Grafana 看板 JSON（开发和手动导入）
+├── scripts/                    # k3d 集群、可观测性安装、压测脚本、E2E验证
+├── docker/                     # Dockerfile（多阶段构建：builder → alpine runtime, < 100MB）
+├── .github/workflows/          # GitHub Actions CI（validate → test → build-push → manifest）
 ├── docs/                       # 架构决策记录 (ADR)
 ├── docker-compose.yml          # 本地开发环境
 └── pyproject.toml

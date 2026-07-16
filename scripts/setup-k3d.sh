@@ -30,5 +30,6 @@ kubectl get nodes
 
 echo ""
 echo "=== Next steps ==="
+echo "  helm dependency update ./chart"
 echo "  helm install cloudforge ./chart"
 echo "  kubectl port-forward svc/cloudforge 8000:8000"

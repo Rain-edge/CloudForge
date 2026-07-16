@@ -1,0 +1,53 @@
+{
+  "version": 2,
+  "rootId": "__root__",
+  "objects": {
+    "__root__": {
+      "id": "__root__",
+      "type": "frame",
+      "name": "Root",
+      "parentId": null,
+      "frameId": null,
+      "x": 0,
+      "y": 0,
+      "width": 0,
+      "height": 0,
+      "rotation": 0,
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "fills": [],
+      "strokes": [],
+      "cornerRadius": 0,
+      "children": [
+        "s_mrnjncby_1"
+      ]
+    },
+    "s_mrnjncby_1": {
+      "id": "s_mrnjncby_1",
+      "type": "text",
+      "name": "Text",
+      "parentId": "__root__",
+      "frameId": null,
+      "x": -46.99949789732901,
+      "y": -196.99894412092488,
+      "width": 86.99949789732901,
+      "height": 106.99894412092488,
+      "rotation": 0,
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "fills": [],
+      "strokes": [],
+      "cornerRadius": 0,
+      "children": [],
+      "textContent": "Text",
+      "fontSize": 16,
+      "fontFamily": "Inter, system-ui, sans-serif",
+      "fontWeight": 400,
+      "textAlign": "left",
+      "lineHeight": 1.5,
+      "fontColor": "currentColor"
+    }
+  }
+}
