@@ -1,0 +1,75 @@
+"""E2E verification script for CloudForge — tests endpoints not requiring DB."""
+import asyncio
+from httpx import ASGITransport, AsyncClient
+from app.main import app
+
+
+async def verify():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        results = []
+
+        # /health (200=healthy, 503=DB unavailable — both valid responses)
+        r = await c.get("/health")
+        data = r.json()
+        ok = r.status_code in (200, 503) and data["status"] in ("ok", "degraded")
+        results.append(("GET /health", ok, str(data)))
+
+        # /metrics
+        r = await c.get("/metrics")
+        lines = r.text.strip().split("\n")
+        metric_lines = [l for l in lines if l and not l.startswith("#")]
+        ok = r.status_code == 200 and len(metric_lines) > 0
+        results.append(("GET /metrics", ok, f"{len(metric_lines)} metric lines"))
+
+        # /docs
+        r = await c.get("/docs")
+        ok = r.status_code == 200
+        results.append(("GET /docs", ok, str(r.status_code)))
+
+        # /openapi.json
+        r = await c.get("/openapi.json")
+        oapi = r.json()
+        paths = list(oapi["paths"].keys())
+        ok = r.status_code == 200 and "/tasks" in str(paths)
+        results.append(("GET /openapi.json", ok, str(paths)))
+
+        # Routes check
+        all_routes = set()
+        for route in app.routes:
+            if hasattr(route, "methods"):
+                for m in route.methods:
+                    all_routes.add(f"{m} {route.path}")
+        required = ["GET /health", "GET /metrics", "GET /tasks", "POST /tasks",
+                     "GET /tasks/{task_id}", "PATCH /tasks/{task_id}",
+                     "DELETE /tasks/{task_id}",
+                     "GET /docs", "GET /openapi.json"]
+        missing = [r for r in required if not any(r in a for a in all_routes)]
+        ok = len(missing) == 0
+        results.append(("Required routes", ok, f"missing={missing}" if missing else "all present"))
+
+        # Print results
+        print("=" * 60)
+        print("  CloudForge E2E Verification")
+        print("=" * 60)
+        all_pass = True
+        for name, ok, detail in results:
+            status = "PASS" if ok else "FAIL"
+            if not ok:
+                all_pass = False
+            print(f"  [{status}] {name}: {detail}")
+        print("=" * 60)
+        if all_pass:
+            print("  ALL CHECKS PASSED")
+        else:
+            print("  SOME CHECKS FAILED - review above")
+        print()
+
+        # Note about CRUD requiring DB
+        print("  Note: /tasks CRUD requires PostgreSQL (docker compose up).")
+        print("  Tests pass with in-memory SQLite (pytest).")
+        print()
+
+
+if __name__ == "__main__":
+    asyncio.run(verify())

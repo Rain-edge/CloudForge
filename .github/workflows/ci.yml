@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+  IMAGE_NAME: cloudforge
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[dev]" 2>/dev/null || pip install fastapi "uvicorn[standard]" "sqlalchemy[asyncio]" asyncpg alembic pydantic pydantic-settings "python-jose[cryptography]" "passlib[bcrypt]" structlog redis pytest pytest-asyncio httpx aiosqlite opentelemetry-api opentelemetry-sdk opentelemetry-instrumentation-fastapi opentelemetry-instrumentation-sqlalchemy opentelemetry-exporter-otlp-proto-grpc prometheus-fastapi-instrumentator
+      - run: pytest app/tests -v --junitxml=results.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: results.xml
+
+  build-push:
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        platform:
+          - linux/amd64
+          - linux/arm64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Extract platform suffix
+        id: platform
+        run: |
+          SUFFIX=$(echo '${{ matrix.platform }}' | sed 's|linux/||' | sed 's|/|-|g')
+          echo "suffix=$SUFFIX" >> "$GITHUB_OUTPUT"
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ${{ env.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=,format=short,suffix=-${{ steps.platform.outputs.suffix }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: ${{ matrix.platform }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  create-manifest:
+    needs: build-push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Create and push multi-arch manifest
+        run: |
+          SHORT_SHA=$(echo '${{ github.sha }}' | cut -c1-7)
+          REPO="${{ env.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}"
+          docker buildx imagetools create -t "${REPO}:${SHORT_SHA}" \
+            "${REPO}:${SHORT_SHA}-amd64" \
+            "${REPO}:${SHORT_SHA}-arm64"
+          docker buildx imagetools create -t "${REPO}:latest" \
+            "${REPO}:${SHORT_SHA}-amd64" \
+            "${REPO}:${SHORT_SHA}-arm64"

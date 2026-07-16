@@ -1,0 +1,54 @@
+{
+  "title": "CloudForge Kubernetes",
+  "uid": "cloudforge-k8s",
+  "panels": [
+    {
+      "title": "CPU Usage",
+      "type": "graph",
+      "targets": [
+        {
+          "expr": "sum(rate(container_cpu_usage_seconds_total{container=\"cloudforge\"}[1m])) by (pod)",
+          "legendFormat": "{{pod}}"
+        }
+      ],
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 }
+    },
+    {
+      "title": "Memory Usage",
+      "type": "graph",
+      "targets": [
+        {
+          "expr": "sum(container_memory_working_set_bytes{container=\"cloudforge\"}) by (pod) / 1024 / 1024",
+          "legendFormat": "{{pod}} MB"
+        }
+      ],
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 }
+    },
+    {
+      "title": "Replica Count",
+      "type": "graph",
+      "targets": [
+        {
+          "expr": "kube_deployment_spec_replicas{deployment=\"cloudforge\"}",
+          "legendFormat": "desired"
+        },
+        {
+          "expr": "kube_deployment_status_replicas_available{deployment=\"cloudforge\"}",
+          "legendFormat": "available"
+        }
+      ],
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 }
+    },
+    {
+      "title": "Pod Restarts",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "rate(kube_pod_container_status_restarts_total{container=\"cloudforge\"}[5m])",
+          "legendFormat": "restarts/s"
+        }
+      ],
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 }
+    }
+  ]
+}

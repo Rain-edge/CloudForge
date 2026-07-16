@@ -1,0 +1,77 @@
+# Default Helm chart values (merge with --set or -f overrides)
+# -- Override the release name
+nameOverride: ""
+# -- Override the full resource name (includes release name)
+fullnameOverride: ""
+
+# -- Number of replicas
+replicaCount: 2
+
+image:
+  repository: cloudforge/cloudforge
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8000
+
+ingress:
+  enabled: true
+  className: nginx
+  host: cloudforge.local
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# Application config
+config:
+  logLevel: "INFO"
+  otelExporterOtlpEndpoint: "http://tempo:4317"
+
+# External services
+postgresql:
+  host: postgresql
+  port: 5432
+  database: cloudforge
+  username: cloudforge
+  password: cloudforge
+
+redis:
+  host: redis-master
+  port: 6379
+
+# Secrets (demo-only; use Sealed Secrets for production)
+secrets:
+  databaseUrl: ""
+  redisUrl: ""
+  secretKey: "change-me-in-production"  # TODO: replace with a real secret key
+
+# Canary deployment
+canary:
+  enabled: false
+  weight: 0
+  replicas: 1
+  tag: latest  # override to deploy a different image version
+
+# Observability
+observability:
+  serviceMonitor:
+    enabled: true
+  prometheusRule:
+    enabled: true

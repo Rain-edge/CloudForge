@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "cloudforge.fullname" . }}
+  labels:
+    {{- include "cloudforge.labels" . | nindent 4 }}
+    app: {{ include "cloudforge.name" . }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    app: {{ include "cloudforge.name" . }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: 8000
+      protocol: TCP
+      name: http

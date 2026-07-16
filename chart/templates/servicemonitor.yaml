@@ -1,0 +1,16 @@
+{{- if .Values.observability.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "cloudforge.fullname" . }}
+  labels:
+    {{- include "cloudforge.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ include "cloudforge.name" . }}
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+{{- end }}
