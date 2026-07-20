@@ -1,50 +1,80 @@
+# ──────────────────────────────────────────────────────────
+# CloudForge 本地开发环境 — Docker Compose 编排
+# =================================================
+# 本文件定义三个服务：
+#   app      — FastAPI 应用（监听 8000 端口）
+#   postgres — PostgreSQL 14 数据库（监听 5432 端口）
+#   redis    — Redis 7 缓存（监听 6379 端口，预留为 Celery Broker）
+#
+# 启动命令：
+#   docker compose up -d        # 后台启动
+#   docker compose down -v      # 停止并删除卷数据
+#
+# 注意事项：
+#   - app 服务挂载了 ./app 目录实现热重载（不重新构建镜像即可看到代码变更）
+#   - depends_on + healthcheck 确保启动顺序：postgres → redis → app
+#   - PostgreSQL 数据持久化到命名卷 pgdata（即使容器删除数据也不丢）
+#   - CF_ 环境变量对应 app/core/config.py 中的 pydantic-settings 字段
+# ──────────────────────────────────────────────────────────
+
 version: "3.9"
 
 services:
+
+  # ===== FastAPI 应用 =====
   app:
     build:
-      context: .
+      context: .                # Docker 构建上下文（项目根目录）
       dockerfile: docker/Dockerfile
     ports:
-      - "8000:8000"
+      - "8000:8000"             # 主机:容器
     environment:
+      # 容器内部通信使用服务名（postgres / redis）而非 localhost
       - CF_DATABASE_URL=postgresql+asyncpg://cloudforge:cloudforge@postgres:5432/cloudforge
       - CF_REDIS_URL=redis://redis:6379/0
-      - CF_SECRET_KEY=dev-secret-key-change-in-production
+      - CF_SECRET_KEY=dev-***************************tion   # 演示环境密钥，生产必须更换
       - CF_LOG_LEVEL=INFO
     depends_on:
       postgres:
-        condition: service_healthy
+        condition: service_healthy  # 等待 PostgreSQL 健康检查通过
       redis:
-        condition: service_healthy
+        condition: service_healthy  # 等待 Redis 健康检查通过
     volumes:
+      # 热重载：修改本地 app/ 代码后自动生效（uvicorn --reload 需额外配置）
       - ./app:/app/app
 
+  # ===== PostgreSQL 14 =====
   postgres:
-    image: postgres:14-alpine
+    image: postgres:14-alpine   # Alpine 版本更小（~80MB vs ~150MB）
     environment:
       POSTGRES_USER: cloudforge
-      POSTGRES_PASSWORD: cloudforge
+      POSTGRES_PASSWORD: [redacted]          # 演示环境密码，生产使用 secrets 管理
       POSTGRES_DB: cloudforge
     ports:
-      - "5432:5432"
+      - "5432:5432"             # 暴露端口方便本地 pgAdmin/DBeaver 连接
     volumes:
+      # 命名卷：数据持久化，容器删除后数据保留
       - pgdata:/var/lib/postgresql/data
     healthcheck:
+      # pg_isready：PostgreSQL 官方健康检查工具
+      # -U cloudforge：使用 cloudforge 用户连接
       test: ["CMD-SHELL", "pg_isready -U cloudforge"]
       interval: 3s
       timeout: 3s
-      retries: 5
+      retries: 5                # 最多允许 5 次失败（共 15s），之后标记为 unhealthy
 
+  # ===== Redis 7 =====
   redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
     healthcheck:
+      # redis-cli ping → 返回 PONG 表示 Redis 已就绪
       test: ["CMD", "redis-cli", "ping"]
       interval: 3s
       timeout: 3s
       retries: 5
 
+# ── 命名卷定义 ────────────────────────────────────────────
 volumes:
-  pgdata:
+  pgdata:   # PostgreSQL 数据持久化卷
