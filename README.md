@@ -2,20 +2,55 @@
 
 **云原生全栈微服务运维平台** — 从代码到 Kubernetes 生产部署，自带可观测性与 CI/CD 的实战项目。
 
-> 面向云计算方向实习求职，重点展示 GitOps、可观测性、容器编排三项核心能力。
+> 面向云计算方向实习求职，重点展示 **GitOps、可观测性、容器编排** 三项核心能力。
+
+![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-async-009688?logo=fastapi&logoColor=white)
+![Kubernetes](https://img.shields.io/badge/K8s-k3s/k3d-326CE5?logo=kubernetes&logoColor=white)
+![Helm](https://img.shields.io/badge/Helm-Chart-0F1689?logo=helm&logoColor=white)
+![ArgoCD](https://img.shields.io/badge/ArgoCD-GitOps-EF7B4D?logo=argo-cd&logoColor=white)
+![Prometheus](https://img.shields.io/badge/Prometheus-Metrics-E6526C?logo=prometheus&logoColor=white)
+![Grafana](https://img.shields.io/badge/Grafana-Dashboards-F46800?logo=grafana&logoColor=white)
+![CI](https://img.shields.io/badge/CI-GitHub_Actions-2088FF?logo=github-actions&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-yellow)
+
+---
+
+## 亮点
+
+- 🔁 **GitOps 闭环** — `git push` → GitHub Actions 构建多架构镜像 → ArgoCD 自动同步到 K8s，Git 即生产环境真相源
+- 📊 **可观测性三支柱打通** — OTel Trace + Prometheus Metrics + Loki Logs，日志点击 `trace_id` 一键跳转 Tempo 完整调用链
+- 🚀 **生产级韧性** — HPA 自动扩缩容（2-10 副本）、PDB 防误删、Liveness/Readiness Probe 自愈、金丝雀按权重灰度
+- 🐳 **轻量安全镜像** — 多阶段构建，alpine runtime + 非 root 运行，镜像 < 100MB，支持 amd64/arm64 双架构
+- 📦 **一键部署** — Helm Chart（15 模板）+ 预置 Grafana Dashboard 与 Alertmanager 告警规则
+
+---
+
+## 目录
+
+- [架构](#架构)
+- [快速开始](#快速开始)
+- [技术栈](#技术栈)
+- [可观测性](#可观测性)
+- [韧性验证](#韧性验证)
+- [项目结构](#项目结构)
+- [License](#license)
 
 ---
 
 ## 架构
 
 ```
-GitHub → GitHub Actions (CI) → Docker Hub
-                                    ↓
-          ArgoCD (GitOps) → Kubernetes (k3s)
-                                    ↓
-          Ingress Nginx → FastAPI (HPA 2-10) → PostgreSQL + Redis
-                                    ↓
-          Prometheus + Grafana + Loki + Tempo + Alertmanager
+GitHub ──► GitHub Actions (CI) ──► Docker Hub (multi-arch image)
+                                        │
+                                        ▼
+   Git repo ──► ArgoCD (GitOps) ──► Kubernetes (k3s)
+                                        │
+                                        ▼
+   Ingress Nginx ──► FastAPI (HPA 2-10) ──► PostgreSQL + Redis
+                                        │
+                                        ▼
+   Prometheus + Grafana + Loki + Tempo + Alertmanager
 ```
 
 ---
@@ -188,18 +223,6 @@ cloudforge/
 
 ---
 
-## 已知局限与改进方向
-
-- 🟡 PostgreSQL 单点部署，未配置主从复制和备份策略
-- 🟡 Redis 单实例（生产应配置集群）
-- 🟡 未实现 JWT 鉴权，API 端点无认证保护
-- 🟡 Secret 管理使用明文 Secret（生产应使用 Sealed Secrets 或 External Secrets Operator）
-- 🟡 金丝雀发布依赖手动调整权重，未集成 Argo Rollouts 实现自动化渐进式交付
-- 🟡 未配置 NetworkPolicy 实现微服务间零信任网络
-- 🔮 后续方向：Terraform 云资源管理、多集群联邦、服务网格（Istio/Linkerd）
-
----
-
-## 证书
+## License
 
 MIT

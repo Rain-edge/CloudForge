@@ -1,4 +1,4 @@
-"""E2E verification script for CloudForge — tests endpoints not requiring DB."""
+"""CloudForge E2E 验证脚本 — 测试不依赖 DB 的端点。"""
 import asyncio
 from httpx import ASGITransport, AsyncClient
 from app.main import app
@@ -9,7 +9,7 @@ async def verify():
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         results = []
 
-        # /health (200=healthy, 503=DB unavailable — both valid responses)
+        # /health：200=健康，503=DB 不可达，均合法
         r = await c.get("/health")
         data = r.json()
         ok = r.status_code in (200, 503) and data["status"] in ("ok", "degraded")
@@ -34,7 +34,7 @@ async def verify():
         ok = r.status_code == 200 and "/tasks" in str(paths)
         results.append(("GET /openapi.json", ok, str(paths)))
 
-        # Routes check
+        # 路由清单校验
         all_routes = set()
         for route in app.routes:
             if hasattr(route, "methods"):
@@ -48,7 +48,7 @@ async def verify():
         ok = len(missing) == 0
         results.append(("Required routes", ok, f"missing={missing}" if missing else "all present"))
 
-        # Print results
+        # 输出结果
         print("=" * 60)
         print("  CloudForge E2E Verification")
         print("=" * 60)
@@ -65,7 +65,7 @@ async def verify():
             print("  SOME CHECKS FAILED - review above")
         print()
 
-        # Note about CRUD requiring DB
+        # /tasks CRUD 依赖 PostgreSQL，需 docker compose up
         print("  Note: /tasks CRUD requires PostgreSQL (docker compose up).")
         print("  Tests pass with in-memory SQLite (pytest).")
         print()
