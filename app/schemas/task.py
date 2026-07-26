@@ -6,8 +6,8 @@ Pydantic V2 数据模型（Schema / DTO） — API 请求与响应的类型定�
   ┌─────────────────┬──────────────────────────────────────────────────┐
   │ 模型             │ 职责                                             │
   ├─────────────────┼──────────────────────────────────────────────────┤
-  │ TaskCreate       │ POST /tasks 请求体验证（只接受 title）            │
-  │ TaskUpdate       │ PATCH /tasks/{id} 请求体验证（所有字段可选）      │
+  │ TaskCreate       │ POST /tasks 请求体验证（只接受 title）             │
+  │ TaskUpdate       │ PATCH /tasks/{id} 请求体验证（所有字段可选）        │
   │ TaskResponse     │ 序列化 ORM 对象为 JSON 响应（from_attributes=True）│
   └─────────────────┴──────────────────────────────────────────────────┘
 

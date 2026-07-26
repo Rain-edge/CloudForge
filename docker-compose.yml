@@ -26,6 +26,7 @@ services:
     build:
       context: .                # Docker 构建上下文（项目根目录）
       dockerfile: docker/Dockerfile
+    restart: unless-stopped     # 应用崩溃后自动重启
     ports:
       - "8000:8000"             # 主机:容器
     environment:
@@ -46,9 +47,10 @@ services:
   # ===== PostgreSQL 14 =====
   postgres:
     image: postgres:14-alpine   # Alpine 版本更小（~80MB vs ~150MB）
+    restart: unless-stopped     # 容器崩溃或 Docker 重启后自动恢复（防止 PG 进程丢失）
     environment:
       POSTGRES_USER: cloudforge
-      POSTGRES_PASSWORD: [redacted]          # 演示环境密码，生产使用 secrets 管理
+      POSTGRES_PASSWORD: "cloudforge"          # 演示环境密码，生产使用 secrets 管理
       POSTGRES_DB: cloudforge
     ports:
       - "5432:5432"             # 暴露端口方便本地 pgAdmin/DBeaver 连接
@@ -66,6 +68,7 @@ services:
   # ===== Redis 7 =====
   redis:
     image: redis:7-alpine
+    restart: unless-stopped     # 容器崩溃后自动恢复
     ports:
       - "6379:6379"
     healthcheck:

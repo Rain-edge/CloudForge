@@ -18,6 +18,9 @@
 # ===== 构建阶段 =====
 FROM python:3.11-alpine AS builder
 
+# 换阿里云镜像源加速 apk 下载
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
+
 # 安装 C 编译工具链（gcc, musl-dev）和 Python C 扩展所需的头文件
 # - postgresql-dev：asyncpg 需要 libpq-fe.h 头文件
 # - libffi-dev：cryptography 需要 FFI 头文件
@@ -28,6 +31,9 @@ WORKDIR /app
 # 先只复制 pyproject.toml，利用 Docker 层缓存：
 #   只要依赖不变，pip install 就不会重新执行
 COPY pyproject.toml ./
+
+# pip 换阿里云镜像源加速下载
+RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/
 
 # --target=/app/deps：将所有包安装到 /app/deps 目录
 # 后续 COPY 到 runtime 阶段，避免残留构建工具
