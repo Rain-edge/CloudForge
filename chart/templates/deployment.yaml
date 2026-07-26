@@ -20,13 +20,12 @@ spec:
     spec:
       terminationGracePeriodSeconds: 30
       securityContext:
-        runAsUser: 1000
+        runAsUser: 65534
         runAsNonRoot: true
-        readOnlyRootFilesystem: true
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
               protocol: TCP
@@ -35,9 +34,6 @@ spec:
                 name: {{ include "cloudforge.fullname" . }}-config
             - secretRef:
                 name: {{ include "cloudforge.fullname" . }}-secret
-          env:
-            - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: {{ .Values.config.otelExporterOtlpEndpoint | quote }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           livenessProbe:

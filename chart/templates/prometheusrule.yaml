@@ -18,7 +18,7 @@ spec:
             severity: critical
           annotations:
             summary: "High error rate detected"
-            description: "Error rate is {{ $value | humanizePercentage }} (above 5%)"
+            description: "Error rate is above 5%"
 
         - alert: HighLatency
           expr: |
@@ -30,7 +30,7 @@ spec:
             severity: warning
           annotations:
             summary: "High p95 latency"
-            description: "p95 latency is {{ $value }}s (above 1s)"
+            description: "p95 latency is above 1s"
 
         - alert: PodRestartingFrequently
           expr: rate(kube_pod_container_status_restarts_total{container="{{ .Chart.Name }}"}[15m]) > 0
@@ -39,5 +39,5 @@ spec:
             severity: warning
           annotations:
             summary: "Pod is restarting frequently"
-            description: "{{ .Chart.Name }} pod restart rate: {{ $value }}"
+            description: "CloudForge pod restart rate elevated"
 {{- end }}

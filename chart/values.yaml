@@ -8,16 +8,15 @@ fullnameOverride: ""
 replicaCount: 2
 
 image:
-  repository: cloudforge/cloudforge
+  repository: cloudforge--app
   tag: latest
-  pullPolicy: IfNotPresent
-
+  pullPolicy: Never
 service:
-  type: ClusterIP
+  type: LoadBalancer
   port: 8000
 
 ingress:
-  enabled: true
+  enabled: false
   className: nginx
   host: cloudforge.local
 
@@ -30,40 +29,32 @@ resources:
     memory: 128Mi
 
 autoscaling:
-  enabled: true
+  enabled: false
   minReplicas: 2
   maxReplicas: 10
   targetCPUUtilizationPercentage: 70
 
 podDisruptionBudget:
-  enabled: true
+  enabled: false
   minAvailable: 1
 
 # Application config
 config:
   logLevel: "INFO"
   logFormat: "json"
-  otelExporterOtlpEndpoint: "http://tempo:4317"
 
-# External services (Bitnami subcharts)
+# External services — K8s-native Deployments defined in postgres.yaml / redis.yaml
+# (Bitnami subcharts are NOT listed in Chart.yaml → helm won't try to install them)
 postgresql:
-  enabled: true
-  auth:
-    database: cloudforge
-    username: cloudforge
-    password: cloudforge
-
+  enabled: false
 redis:
-  enabled: true
-  architecture: standalone
-  auth:
-    enabled: false
+  enabled: false
 
 # Secrets (demo-only; use Sealed Secrets for production)
 secrets:
-  databaseUrl: ""
-  redisUrl: ""
-  secretKey: "change-me-in-production"  # TODO: replace with a real secret key
+  databaseUrl: "postgresql+asyncpg://cloudforge:cloudforge@cloudforge-pg:5432/cloudforge"
+  redisUrl: "redis://cloudforge-redis:6379/0"
+  secretKey: "k8s-deploy-dev-key-32-chars!!"
 
 # Canary deployment
 canary:
@@ -75,10 +66,10 @@ canary:
 # Observability
 observability:
   serviceMonitor:
-    enabled: true
+    enabled: false
   prometheusRule:
-    enabled: true
+    enabled: false
 
 # Grafana dashboard provisioning (requires kube-prometheus-stack with sidecar)
 grafanaDashboard:
-  enabled: true
+  enabled: false
