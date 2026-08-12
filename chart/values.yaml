@@ -5,7 +5,7 @@ nameOverride: ""
 fullnameOverride: ""
 
 # -- Number of replicas
-replicaCount: 3
+replicaCount: 2
 
 image:
   repository: cloudforge--app
