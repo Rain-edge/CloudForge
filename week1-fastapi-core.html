@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CloudForge 第一周：FastAPI 核心架构</title>
+<style>
+:root { color-scheme: light; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 800px; margin: 0 auto; padding: 40px 20px; line-height: 1.8; color: #333; background: #fff; }
+h1 { font-size: 1.8em; border-bottom: 2px solid #0066cc; padding-bottom: 8px; }
+h2 { font-size: 1.3em; margin-top: 32px; color: #0066cc; }
+h3 { font-size: 1.1em; margin-top: 24px; }
+pre { background: #f5f5f5; border-left: 3px solid #0066cc; padding: 12px 16px; overflow-x: auto; font-size: 0.92em; border-radius: 4px; }
+code { background: #f0f0f0; padding: 1px 4px; border-radius: 3px; font-size: 0.95em; }
+table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+th, td { border: 1px solid #ddd; padding: 10px 12px; text-align: left; }
+th { background: #f2f5f9; font-weight: 600; }
+.note { background: #e8f4fd; border-left: 3px solid #0066cc; padding: 14px 18px; margin: 16px 0; border-radius: 4px; }
+.flow { background: #f8f8f8; padding: 16px 20px; border-radius: 4px; margin: 12px 0; font-family: monospace; white-space: pre; line-height: 1.6; }
+.step { display: flex; align-items: flex-start; margin: 20px 0; }
+.step-num { background: #0066cc; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.9em; flex-shrink: 0; margin-right: 14px; }
+.step-content { flex: 1; }
+</style>
+</head>
+<body>
+
+<h1>CloudForge 第一周：FastAPI 核心架构</h1>
+
+<h2>总览：一个 HTTP 请求的完整旅程</h2>
+
+<p>当你在终端输入 <code>curl http://localhost:8000/tasks</code> 并按下回车时，CloudForge 内部发生了一场精密的编排。理解这场旅程，你就理解了这个项目的骨架。</p>
+
+<div class="flow">
+┌─────────────┐     ┌──────────────┐     ┌───────────────┐     ┌────────────────┐
+│  Uvicorn    │────▶│  FastAPI     │────▶│  Middleware    │────▶│  Router        │
+│  (ASGI 服务) │     │  (路由匹配)   │     │  (RequestID)   │     │  (tasks.py)    │
+└─────────────┘     └──────────────┘     └───────────────┘     └────────────────┘
+                                                                          │
+                                                                          ▼
+                                                                  ┌────────────────┐
+                                                                  │  ORM / Schema  │
+                                                                  │  (Pydantic)     │
+                                                                  └────────────────┘
+                                                                          │
+                                                                          ▼
+                                                                  ┌────────────────┐
+                                                                  │  Database       │
+                                                                  │  (PostgreSQL)   │
+                                                                  └────────────────┘
+</div>
+
+<h2>第一讲：app/main.py — 应用的入口</h2>
+
+<p>这是整个项目的 <strong>main 函数</strong>，所有其他模块都从这里被组装起来。</p>
+
+<h3>核心结构</h3>
+
+<table>
+<tr><th>模块</th><th>代码行</th><th>做的事情</th></tr>
+<tr><td><code>lifespan</code></td><td>28-53</td><td>启动时验证 PG 就绪 → 自动建表；关闭时释放连接池</td></tr>
+<tr><td><code>app = FastAPI(...)</code></td><td>58-63</td><td>创建应用实例，绑定 lifespan</td></tr>
+<tr><td><code>setup_telemetry(app)</code></td><td>67</td><td>OpenTelemetry 自动生成 Trace</td></tr>
+<tr><td><code>RequestIDMiddleware</code></td><td>71</td><td>每个请求注入唯一 ID + trace_id</td></tr>
+<tr><td><code>setup_metrics(app)</code></td><td>74</td><td>暴露 /metrics 给 Prometheus</td></tr>
+<tr><td><code>health.router</code></td><td>77</td><td>注册 GET /health 路由</td></tr>
+<tr><td><code>tasks.router</code></td><td>78</td><td>注册 CRUD /tasks 路由</td></tr>
+</table>
+
+<div class="note">
+<strong>关键概念：lifespan</strong><br>
+FastAPI 的 lifespan 是一个 async context manager（用 <code>@asynccontextmanager</code> 装饰）。<code>yield</code> 之前的代码在启动时执行，之后的代码在关闭时执行。这替代了旧的 <code>@app.on_event("startup")</code> 写法。
+</div>
+
+<div class="note">
+<strong>关键概念：中间件加载顺序</strong><br>
+FastAPI 按 <code>add_middleware()</code> 的<em>逆序</em>执行中间件。所以 setup_telemetry → RequestIDMiddleware → setup_metrics 的实际执行顺序是 setup_metrics → RequestIDMiddleware → setup_telemetry。为什么先 setup_telemetry？因为 OpenTelemetry 需要先生成 Span，其他中间件才能读取 trace_id。
+</div>
+
+<h3>启动时发生了什么</h3>
+
+<div class="step"><div class="step-num">1</div><div class="step-content"><code>engine.connect()</code> 尝试连 PostgreSQL，最多重试 10 次（每次等 2 秒）。这是对 Docker Compose depends_on 的二次确认——容器启动不代表 PG 真正 ready。</div></div>
+<div class="step"><div class="step-num">2</div><div class="step-content"><code>Base.metadata.create_all</code> 自动创建 <code>tasks</code> 表。生产环境应该用 alembic 管理迁移，但演示环境这么做更方便。</div></div>
+<div class="step"><div class="step-num">3</div><div class="step-content">可观测性三件套注册：Telemetry → Logging → Metrics。</div></div>
+<div class="step"><div class="step-num">4</div><div class="step-content">路由注册：<code>/health</code>、<code>/metrics</code>、<code>/tasks</code>、<code>/tasks/{id}</code> 全部可用。</div></div>
+
+<hr>
+
+<h2>第二讲：app/core/config.py — 环境变量管理</h2>
+
+<p>这个文件只有 42 行，但它解决了软件工程里一个根本问题：<strong>如何让同一份代码在不同环境下使用不同的配置？</strong></p>
+
+<h3>配置优先级</h3>
+
+<div class="flow">
+环境变量 (CF_DATABASE_URL)      ← 最高优先级
+        │
+        ▼
+.env 文件（项目根目录）         ← 次优先级
+        │
+        ▼
+代码中的 default 值             ← 最低优先级（兜底）
+</div>
+
+<div class="note">
+<strong>设计巧思：CF_ 前缀</strong><br>
+pydantic-settings 自动把 Python 字段名 <code>database_url</code> 转大写并加 <code>CF_</code> 前缀 → 环境变量 <code>CF_DATABASE_URL</code>。这样 CloudForge 的变量不会和系统的 <code>DATABASE_URL</code> 冲突。<br><br>
+
+验证：在 Docker Compose 中 <code>- CF_DATABASE_URL=postgresql+asyncpg://...</code> 会覆盖代码默认值。
+</div>
+
+<hr>
+
+<h2>第三讲：app/core/database.py — 异步数据库引擎</h2>
+
+<p>这是整个项目性能的关键。如果数据库连接管理不好，应用在高并发下会崩溃。</p>
+
+<h3>连接池参数解析</h3>
+
+<table>
+<tr><th>参数</th><th>值</th><th>为什么选这个值</th></tr>
+<tr><td><code>pool_pre_ping</code></td><td>True</td><td>每次从池子取连接前先 SELECT 1。如果 PG 重启过或空闲超时断开了，自动重连。</td></tr>
+<tr><td><code>pool_size</code></td><td>10</td><td>保持 10 个常驻连接，应对常规流量。</td></tr>
+<tr><td><code>max_overflow</code></td><td>20</td><td>流量高峰时最多临时创建 20 个额外连接，峰值 10+20=30。</td></tr>
+<tr><td><code>pool_recycle</code></td><td>3600</td><td>连接超过 1 小时自动回收。防止云环境负载均衡器静默断开空闲连接。</td></tr>
+<tr><td><code>timeout</code></td><td>10s</td><td>建立新 TCP 连接的超时。超时则快速失败，不阻塞。</td></tr>
+<tr><td><code>command_timeout</code></td><td>30s</td><td>单条 SQL 最长执行时间。防止慢查询卡住连接。</td></tr>
+</table>
+
+<div class="note">
+<strong>为什么用 asyncpg 而不是 psycopg？</strong><br>
+asyncpg 是纯 Python 写的异步 PG 驱动，速度比 psycopg2 快 3 倍以上。SQLAlchemy 2.0 原生支持 async，搭配 asyncpg 实现真正的非阻塞数据库操作。
+</div>
+
+<h3>依赖注入：get_db</h3>
+
+<pre><code>async def get_db():
+    async with async_session() as session:
+        yield session</code></pre>
+
+<p>这是一个 Python generator。在路由函数中声明 <code>db: AsyncSession = Depends(get_db)</code> 后，FastAPI 会在请求开始时创建 session，请求结束时自动关闭。你不需要手动管理数据库连接——框架帮你做了。</p>
+
+<hr>
+
+<h2>第四讲：app/models/task.py + app/schemas/task.py — 模型与数据契约</h2>
+
+<p>这两个文件构成了这个项目的<strong>数据层</strong>。理解它们的区别，是理解分层架构的关键。</p>
+
+<h3>ORM 模型 vs Pydantic Schema</h3>
+
+<table>
+<tr><th>对比维度</th><th>ORM 模型 (models/task.py)</th><th>Pydantic Schema (schemas/task.py)</th></tr>
+<tr><td>使命</td><td>描述数据库表结构</td><td>描述 API 契约</td></tr>
+<tr><td>创建对象</td><td><code>Task(title="...")</code></td><td><code>TaskCreate(title="...")</code></td></tr>
+<tr><td>数据库相关</td><td>是（映射到 tasks 表）</td><td>否（纯粹的数据结构）</td></tr>
+<tr><td>验证</td><td>无（靠数据库约束）</td><td>有（Pydantic 自动校验）</td></tr>
+<tr><td>序列化</td><td>不能直接返回给 API</td><td>自动转 JSON（from_attributes=True）</td></tr>
+</table>
+
+<div class="note">
+<strong>核心设计决策：ORM 和 Schema 分离</strong><br>
+为什么不直接返回 ORM 对象？因为你的数据库表结构不应该决定你的 API 响应格式。今天加个字段不代表它应该暴露给调用方；今天改个列名不代表调用方要跟着改。Schema 是一层保护层。
+</div>
+
+<h3>TaskStatus 枚举</h3>
+
+<pre><code>class TaskStatus(str, enum.Enum):
+    pending = "pending"
+    in_progress = "in_progress"
+    done = "done"</code></pre>
+
+<p>继承 <code>str</code> 的好处：可以直接 JSON 序列化（"pending" 而不是 TaskStatus.pending）。</p>
+
+<h3>UUID 主键</h3>
+
+<pre><code>id: Mapped[uuid.UUID] = mapped_column(
+    UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+)</code></pre>
+
+<p>为什么用 UUID 而不是自增整数？分布式系统里，多个服务各自生成 ID 不会冲突。自增 ID 在分库分表时会出问题。</p>
+
+<h3>Pydantic V2 关键特性：from_attributes</h3>
+
+<pre><code>class TaskResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    title: str</code></pre>
+
+<p><code>from_attributes=True</code> 告诉 Pydantic 从 ORM 对象的 <code>.属性</code> 读取数据。这替代了旧的 <code>class Config: orm_mode = True</code>。</p>
+
+<h3>TaskCreate vs TaskUpdate</h3>
+
+<p><strong>TaskCreate</strong>：<code>title</code> 必填（<code>Field(...)</code>）。创建时必须给标题。</p>
+<p><strong>TaskUpdate</strong>：所有字段可选。PATCH 语义：只传你要改的字段。你可以在请求体里只传 <code>{"status": "done"}</code> 而不传 title。</p>
+
+<hr>
+
+<h2>第五讲：app/routers/tasks.py — RESTful CRUD</h2>
+
+<p>这是用户能看到的 API。5 个端点，标准的 REST 风格。</p>
+
+<h3>端点—HTTP 动词—幂等性</h3>
+
+<table>
+<tr><th>端点</th><th>HTTP 动词</th><th>幂等？</th><th>状态码</th><th>查询方式</th></tr>
+<tr><td>/tasks</td><td>GET</td><td>是（不改数据）</td><td>200</td><td><code>select(Task).order_by(...)</code></td></tr>
+<tr><td>/tasks</td><td>POST</td><td>否（每次新建）</td><td>201</td><td><code>db.add() → commit() → refresh()</code></td></tr>
+<tr><td>/tasks/{id}</td><td>GET</td><td>是</td><td>200/404</td><td><code>db.get(Task, id)</code></td></tr>
+<tr><td>/tasks/{id}</td><td>PATCH</td><td>部分幂等</td><td>200/404</td><td><code>model_dump + setattr</code></td></tr>
+<tr><td>/tasks/{id}</td><td>DELETE</td><td>是</td><td>204/404</td><td><code>db.delete() → commit()</code></td></tr>
+</table>
+
+<h3>创建流程详解</h3>
+
+<div class="step"><div class="step-num">1</div><div class="step-content">请求体 <code>{"title":"hello"}</code> → Pydantic 校验 → 生成 <code>TaskCreate(title="hello")</code></div></div>
+<div class="step"><div class="step-num">2</div><div class="step-content"><code>task = Task(title=body.title)</code> → 创建 ORM 实例（id 自动生成 UUID，status 默认 pending）</div></div>
+<div class="step"><div class="step-num">3</div><div class="step-content"><code>db.add(task)</code> → 把对象加入 SQLAlchemy 的 "待插入" 队列</div></div>
+<div class="step"><div class="step-num">4</div><div class="step-content"><code>await db.commit()</code> → 发送实际的 INSERT SQL 到 PG</div></div>
+<div class="step"><div class="step-num">5</div><div class="step-content"><code>await db.refresh(task)</code> → 从数据库重新加载（获得 PG 填充的 created_at/updated_at 时间戳）</div></div>
+<div class="step"><div class="step-num">6</div><div class="step-content"><code>return task</code> → Pydantic 自动把 ORM 对象转成 <code>TaskResponse</code> JSON</div></div>
+
+<h3>PATCH 的精妙之处</h3>
+
+<pre><code>update_data = body.model_dump(exclude_unset=True)
+for key, value in update_data.items():
+    setattr(task, key, value)</code></pre>
+
+<p><code>exclude_unset=True</code> 是关键。用户在请求体里只传了 <code>{"status": "done"}</code>，那 <code>update_data</code> 就只包含 <code>{"status": "done"}</code>。title 不会被覆盖为 None。</p>
+
+<h3>为什么用 async/await？</h3>
+
+<p>传统的同步 Python 代码，一个请求要等数据库返回结果才能处理下一个请求。async/await 允许在等数据库的间隙去处理其他请求——一个线程可以并发处理上千个请求。</p>
+
+<hr>
+
+<h2>第六讲：app/routers/health.py — K8s 的生命线</h2>
+
+<p>这个端点只有 50 行代码，但它是 Kubernetes 判断 Pod 是否"活着"的依据。</p>
+
+<h3>两种探针</h3>
+
+<table>
+<tr><th>探针</th><th>失败后果</th><th>典型检查内容</th></tr>
+<tr><td>livenessProbe</td><td>kubelet 杀掉并重启 Pod</td><td>应用是否死锁/无响应</td></tr>
+<tr><td>readinessProbe</td><td>从 Service 端点列表中移除</td><td>数据库是否可达</td></tr>
+</table>
+
+<div class="note">
+<strong>设计原则</strong><br>
+健康检查不应做重操作。SELECT 1 足够——不需要建表、不需要做复杂查询、不需要创建新连接。如果 PG 不可达，直接返回 503 告诉 K8s 这个 Pod 暂时不能接流量。
+</div>
+
+<hr>
+
+<h2>第十四次测试通过意味着什么</h2>
+
+<p>我们刚在沙箱里跑了 14 个测试，全部通过。这 14 个测试覆盖了：</p>
+
+<ul>
+<li><strong>健康检查</strong>（1 个）：数据库连接正常时返回 200</li>
+<li><strong>日志格式</strong>（1 个）：structlog 输出包含 request_id</li>
+<li><strong>Prometheus 指标</strong>（3 个）：/metrics 端点可访问、指标族完整、行数不少于 40</li>
+<li><strong>Task CRUD</strong>（8 个）：创建、列表、详情、更新、删除、以及三 404 场景</li>
+<li><strong>输入验证</strong>（1 个）：非法 payload 返回 422</li>
+</ul>
+
+<p>这些测试不依赖外部 PostgreSQL——conftest.py 用 SQLite 内存数据库模拟了真实 PG。这是测试隔离的标准做法。</p>
+
+<hr>
+
+<h2>第一天任务清单</h2>
+
+<ol>
+<li><strong>精读 app/main.py</strong>：在纸上画出启动流程（lifespan → 可观测性 → 路由）</li>
+<li><strong>精读 app/core/config.py</strong>：理解 CF_ 前缀映射规则，尝试改 .env 文件看效果</li>
+<li><strong>精读 app/core/database.py</strong>：在纸上列出 6 个连接池参数的作用</li>
+<li><strong>对比 app/models/task.py 和 app/schemas/task.py</strong>：写一段话说明 ORM 和 Schema 的职责区别</li>
+<li><strong>在 tasks.py 中找到每个 CRUD 端点</strong>，用 curl 调用一遍</li>
+<li><strong>修改 TaskUpdate</strong>，加一个 <code>priority: int | None</code> 字段，观察 PATCH 行为变化</li>
+<li><strong>跑 14 个测试</strong>，确认全部通过</li>
+</ol>
+
+</body>
+</html>
