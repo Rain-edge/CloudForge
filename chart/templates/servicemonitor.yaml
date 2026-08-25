@@ -1,3 +1,8 @@
+{{- /*
+  ServiceMonitor：Prometheus Operator 的 CRD
+  声明如何抓取 CloudForge 的 /metrics 端点；kube-prometheus-stack 会自动识别并加到抓取列表
+  interval=15s：15 秒采一次，比默认 30s 更灵敏，配合 HPA 做实时决策
+*/ -}}
 {{- if .Values.observability.serviceMonitor.enabled }}
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor

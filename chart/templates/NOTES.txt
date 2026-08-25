@@ -1,0 +1,30 @@
+{{- /*
+  NOTES.txt：helm install / helm upgrade 成功后在终端显示的提示
+  这里写接入指南的常用命令，部署者无需回查 README
+*/ -}}
+{{- printf "\n%s 部署成功！\n" .Chart.Name }}
+-----------------------------------------
+  发布版本：{{ .Release.Name }}
+  命名空间：{{ .Release.Namespace }}
+  版本号：{{ .Chart.AppVersion }}
+
+  验证健康状态：
+    kubectl get pods -n {{ .Release.Namespace }} -l app={{ include "cloudforge.name" . }}
+    kubectl port-forward svc/{{ include "cloudforge.fullname" . }} 8000:8000
+    curl http://localhost:8000/health
+
+{{- if .Values.ingress.enabled }}
+  访问地址：http://{{ .Values.ingress.host }}
+{{- end }}
+
+{{- if .Values.autoscaling.enabled }}
+  自动扩缩容（HPA）：kubectl get hpa -n {{ .Release.Namespace }}
+{{- end }}
+
+{{- if .Values.canary.enabled }}
+  金丝雀发布：
+    当前权重：{{ .Values.canary.weight }}%
+    提升权重：helm upgrade {{ .Release.Name }} ./chart --set canary.weight=50
+    异常回滚：kubectl delete deployment {{ include "cloudforge.fullname" . }}-canary
+{{- end }}
+-----------------------------------------

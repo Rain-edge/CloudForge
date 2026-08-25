@@ -1,20 +1,28 @@
+# ArgoCD Application 资源 — GitOps 核心
+# 作用：ArgoCD 会监控 spec.source 指向的仓库路径，
+#       一旦 main 分支有新 commit 就自动同步到 K8s 集群（无需手动 kubectl）
+# 告警流程：
+#   git push → GitHub Actions build-push 新镜像（sha-xxxx）
+#            → 需要再 commit 一次修改 values.yaml 的 tag
+#            → ArgoCD 检测到 chart/values 变更 → helm upgrade 到新版本
+# 注意：修改 repoURL 为你自己的仓库地址
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: cloudforge
-  namespace: argocd
+  namespace: argocd                         # ArgoCD 自己所在的命名空间
 spec:
-  project: default
-  source:
+  project: default                           # 归属于 default 项目（一般不做多租户就用它）
+  source:                                    # 配置源：Git 仓库的 Chart 目录
     repoURL: https://github.com/Rain-edge/cloudforge
-    targetRevision: main
-    path: chart
-  destination:
-    server: https://kubernetes.default.svc
+    targetRevision: main                     # 跟踪 main 分支（也可写 tag 如 v0.1.0）
+    path: chart                              # Chart 在仓库中的相对路径
+  destination:                               # 部署目标集群 & 命名空间
+    server: https://kubernetes.default.svc   # 同一集群（ArgoCD 运行在目标集群中）；多集群时填 cluster secret 名
     namespace: cloudforge
   syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
+    automated:                               # 开启自动同步（Git 推代码 → 自动 apply 到 K8s）
+      prune: true                            # Git 删除某资源定义时，K8s 也删掉对应资源（否则残留）
+      selfHeal: true                         # 手动 kubectl 改了的资源，ArgoCD 会自动恢复成 Git 定义的状态
     syncOptions:
-      - CreateNamespace=true
+      - CreateNamespace=true                 # 如果 cloudforge namespace 不存在，自动创建

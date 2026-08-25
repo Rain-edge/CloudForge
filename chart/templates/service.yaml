@@ -1,3 +1,7 @@
+{{- /*
+  主 Service：匹配 selector app=cloudforge（主版本 + 金丝雀版本都会被匹配）
+  要精确分流使用 Ingress weight 或 ServiceMonitor，不能靠 Service
+*/ -}}
 apiVersion: v1
 kind: Service
 metadata:

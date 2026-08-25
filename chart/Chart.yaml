@@ -1,7 +1,10 @@
+# CloudForge Helm Chart
+# 描述：云原生微服务运维平台，含 FastAPI 应用 + PostgreSQL + Redis
+#       + 可观测性（ServiceMonitor / PrometheusRule / Grafana Dashboard）
+#       + 韧性能力（HPA / PDB / 金丝雀发布）
 apiVersion: v2
 name: cloudforge
-description: CloudForge - Cloud-native microservice operations platform
+description: CloudForge - 云原生全栈微服务运维平台
 type: application
 version: 0.1.0
 appVersion: "0.1.0"
-

@@ -1,3 +1,7 @@
+{{- /*
+  金丝雀 Service：仅匹配 component=canary 的 Pod
+  供 Ingress canary-weight 做按权重分流的后端
+*/ -}}
 {{- if .Values.canary.enabled }}
 apiVersion: v1
 kind: Service

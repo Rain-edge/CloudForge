@@ -1,3 +1,8 @@
+{{- /*
+  ConfigMap：非机密应用配置（日志级别、格式等）
+  容器以 envFrom.configMapRef 批量注入，变量名 CF_LOG_* 与 pydantic-settings 对齐
+  机密配置放 Secret（参见 secret.yaml）
+*/ -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:

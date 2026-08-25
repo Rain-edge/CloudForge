@@ -1,3 +1,10 @@
+# CloudForge CI 流水线
+# 四个 job，顺序依赖：validate → test → build-push → create-manifest
+# 说明：
+#   - validate：Helm lint/template + Grafana Dashboard JSON 校验，不依赖任何服务
+#   - test：pytest 跑 14 个单元测试（用 aiosqlite 内存库，无需真实 PG）
+#   - build-push：矩阵构建 amd64/arm64 双架构镜像，分别 push 到 Docker Hub
+#   - create-manifest：用 buildx imagetools 把两架构合并成多架构 manifest
 name: CI
 
 on:
@@ -7,7 +14,7 @@ on:
     branches: [main]
 
 env:
-  DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+  DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}   # 在 GitHub → Settings → Secrets 中配置
   IMAGE_NAME: cloudforge
 
 jobs:
@@ -16,66 +23,71 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Helm
+      - name: 安装 Helm CLI
         run: |
           curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
           helm version
 
-      - name: Helm dependency update
+      - name: Helm 下载依赖 subchart（若有）
         run: helm dependency update ./chart
 
-      - name: Helm lint
+      - name: Helm lint — 校验 Chart 语法与规范
         run: helm lint ./chart
 
-      - name: Helm template smoke test
+      - name: Helm template smoke — 确保所有模板能正确渲染
         run: helm template cloudforge ./chart --debug
 
-      - name: Validate Grafana dashboard JSON
+      - name: 校验 Grafana Dashboard JSON 格式合法性
         run: python3 scripts/validate-dashboards.py
 
   test:
-    needs: validate
+    needs: validate                       # validate 通过才跑测试
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      # 首选 pip install -e .[dev] 走 pyproject.toml 解析；失败则兜底逐个安装（避免 pydantic 版本冲突）
       - run: pip install -e ".[dev]" 2>/dev/null || pip install fastapi "uvicorn[standard]" "sqlalchemy[asyncio]" asyncpg alembic pydantic pydantic-settings "python-jose[cryptography]" "passlib[bcrypt]" structlog redis pytest pytest-asyncio httpx aiosqlite opentelemetry-api opentelemetry-sdk opentelemetry-instrumentation-fastapi opentelemetry-instrumentation-sqlalchemy opentelemetry-exporter-otlp-proto-grpc prometheus-fastapi-instrumentator
       - run: pytest app/tests -v --junitxml=results.xml
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: always()                       # 即使测试失败也上传结果，方便在 Actions UI 看报告
         with:
           name: test-results
           path: results.xml
 
   build-push:
-    needs: test
+    needs: test                           # 测试通过才构建镜像
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false                    # 某架构失败不取消另一架构
       matrix:
         platform:
-          - linux/amd64
-          - linux/arm64
+          - linux/amd64                   # 常见云服务器 / PC 服务器架构
+          - linux/arm64                   # Apple Silicon M 系列 / AWS Graviton / 国产 ARM
     steps:
       - uses: actions/checkout@v4
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-qemu-action@v3          # 启用 QEMU，让 buildx 能跨架构模拟
+      - uses: docker/setup-buildx-action@v3       # 创建 buildx builder
       - uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: Extract platform suffix
+      # 提取平台后缀：linux/amd64 → amd64，linux/arm64 → arm64，作为 tag 后缀
+      - name: 提取平台后缀
         id: platform
         run: |
           SUFFIX=$(echo '${{ matrix.platform }}' | sed 's|linux/||' | sed 's|/|-|g')
           echo "suffix=$SUFFIX" >> "$GITHUB_OUTPUT"
+      # 根据 git short sha 等元数据生成镜像标签（如 sha-abc1234-amd64）
       - uses: docker/metadata-action@v5
         id: meta
         with:
           images: ${{ env.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}
           tags: |
             type=sha,prefix=,format=short,suffix=-${{ steps.platform.outputs.suffix }}
+      # 构建并推送：context=仓库根目录，Dockerfile 位于 docker/Dockerfile
       - uses: docker/build-push-action@v6
         with:
           context: .
@@ -86,7 +98,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
 
   create-manifest:
-    needs: build-push
+    needs: build-push                     # 两个架构镜像都推完再合并
     runs-on: ubuntu-latest
     steps:
       - uses: docker/setup-qemu-action@v3
@@ -95,7 +107,9 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: Create and push multi-arch manifest
+      # 合并 manifest：sha-abc1234-amd64 + sha-abc1234-arm64 → sha-abc1234（多架构索引）
+      # 同时打 latest 标签，ArgoCD 默认拉 latest 就能在任意架构节点运行
+      - name: 合并多架构 manifest 并推送
         run: |
           SHORT_SHA=$(echo '${{ github.sha }}' | cut -c1-7)
           REPO="${{ env.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}"

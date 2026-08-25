@@ -1,3 +1,10 @@
+{{- /*
+  PrometheusRule：Prometheus Operator 的 CRD，声明告警规则
+  3 条核心告警：
+    1. HighErrorRate        — 5xx 错误率连续 2 分钟 > 5%（严重）
+    2. HighLatency          — p95 延迟连续 5 分钟 > 1s（警告）
+    3. PodRestartingFreq..  — 容器 15 分钟内有重启（警告，通常是 OOM / panic）
+*/ -}}
 {{- if .Values.observability.prometheusRule.enabled }}
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
@@ -9,7 +16,7 @@ spec:
   groups:
     - name: cloudforge-alerts
       rules:
-        - alert: HighErrorRate
+        - alert: HighErrorRate          # 5xx 错误率过高
           expr: |
             sum(rate(http_requests_total{status=~"5.."}[5m]))
             / sum(rate(http_requests_total[5m])) > 0.05
@@ -17,10 +24,10 @@ spec:
           labels:
             severity: critical
           annotations:
-            summary: "High error rate detected"
-            description: "Error rate is above 5%"
+            summary: "错误率过高（已超 5%）"
+            description: "最近 5 分钟内 5xx 错误占比持续高于 5%"
 
-        - alert: HighLatency
+        - alert: HighLatency            # p95 延迟过高
           expr: |
             histogram_quantile(0.95,
               sum(rate(http_request_duration_seconds_bucket[5m])) by (le)
@@ -29,15 +36,15 @@ spec:
           labels:
             severity: warning
           annotations:
-            summary: "High p95 latency"
-            description: "p95 latency is above 1s"
+            summary: "p95 延迟过高（已超 1s）"
+            description: "最近 5 分钟 p95 接口延迟持续 > 1 秒"
 
-        - alert: PodRestartingFrequently
+        - alert: PodRestartingFrequently   # Pod 频繁重启
           expr: rate(kube_pod_container_status_restarts_total{container="{{ .Chart.Name }}"}[15m]) > 0
           for: 5m
           labels:
             severity: warning
           annotations:
-            summary: "Pod is restarting frequently"
-            description: "CloudForge pod restart rate elevated"
+            summary: "CloudForge Pod 频繁重启"
+            description: "最近 15 分钟内 {{ .Chart.Name }} 容器持续发生重启（通常是 OOM 或 panic）"
 {{- end }}

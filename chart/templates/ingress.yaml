@@ -1,3 +1,8 @@
+{{- /*
+  主 Ingress：稳定版本流量入口
+  配合 nginx ingress controller 使用；
+  canary Ingress 启用后会根据 weight 切一部分流量到金丝雀 Service
+*/ -}}
 {{- if .Values.ingress.enabled }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -6,7 +11,7 @@ metadata:
   labels:
     {{- include "cloudforge.labels" . | nindent 4 }}
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/rewrite-target: /   # 路径重写为根路径，适配 FastAPI 路由
 spec:
   ingressClassName: {{ .Values.ingress.className }}
   rules:

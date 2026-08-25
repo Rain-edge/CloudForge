@@ -1,3 +1,8 @@
+{{- /*
+  金丝雀 Deployment：部署新版本进行灰度验证
+  仅在 .Values.canary.enabled=true 时创建
+  与主版本区别：多了 component=canary 标签；可单独指定镜像 tag；副本数更小
+*/ -}}
 {{- if .Values.canary.enabled }}
 apiVersion: apps/v1
 kind: Deployment
@@ -28,6 +33,7 @@ spec:
         runAsNonRoot: true
       containers:
         - name: {{ .Chart.Name }}
+          # canary.tag 默认跟随主版本；独立发布新版本时传 --set canary.tag=sha-abc1234
           image: "{{ .Values.image.repository }}:{{ .Values.canary.tag | default .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:

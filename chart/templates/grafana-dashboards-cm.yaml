@@ -1,3 +1,8 @@
+{{- /*
+  Grafana Dashboard ConfigMap：把两个预设 JSON 看板打包进 ConfigMap
+  kube-prometheus-stack 的 grafana sidecar 会扫描含 grafana_dashboard: "1" 标签的 ConfigMap，
+  自动把 JSON 导入到 Grafana，无需手动上传。
+*/ -}}
 {{- if .Values.grafanaDashboard.enabled }}
 apiVersion: v1
 kind: ConfigMap
@@ -5,10 +10,12 @@ metadata:
   name: {{ include "cloudforge.fullname" . }}-dashboards
   labels:
     {{- include "cloudforge.labels" . | nindent 4 }}
-    grafana_dashboard: "1"
+    grafana_dashboard: "1"        # grafana sidecar 识别该标签才会导入
 data:
+  # 应用级看板：QPS、错误率、p95 延迟、状态码分布
   cloudforge-overview.json: |
 {{ .Files.Get "dashboards/cloudforge-overview.json" | indent 4 }}
+  # 集群级看板：CPU/内存、副本数、Pod 重启频率
   cloudforge-k8s.json: |
 {{ .Files.Get "dashboards/cloudforge-k8s.json" | indent 4 }}
 {{- end }}

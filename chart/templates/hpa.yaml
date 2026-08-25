@@ -1,3 +1,7 @@
+{{- /*
+  HPA：根据 CPU 利用率自动调整主 Deployment 副本数
+  autoscaling.enabled=true 时创建；支持 min/max 副本 + targetCPU 利用率阈值
+*/ -}}
 {{- if .Values.autoscaling.enabled }}
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler

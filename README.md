@@ -220,9 +220,3 @@ cloudforge/
 ├── docker-compose.yml          # 本地开发环境
 └── pyproject.toml
 ```
-
----
-
-## License
-
-MIT

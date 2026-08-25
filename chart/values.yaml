@@ -1,75 +1,84 @@
-# Default Helm chart values (merge with --set or -f overrides)
-# -- Override the release name
-nameOverride: ""
-# -- Override the full resource name (includes release name)
-fullnameOverride: ""
+# CloudForge Helm Chart 默认值
+# 部署时通过 --set key=value 或 -f custom-values.yaml 覆盖
 
-# -- Number of replicas
+# 资源命名
+nameOverride: ""     # 覆盖 Chart.Name（cloudforge），生成资源名前缀
+fullnameOverride: "" # 覆盖完整资源名（含 Release.Name）
+
+# 主 Deployment 副本数（HPA 关闭时生效）
 replicaCount: 2
 
+# 应用镜像
 image:
   repository: cloudforge--app
   tag: latest
-  pullPolicy: Never
+  pullPolicy: Never        # 本地 k3d/k3s 演示使用 Never，避免去远端拉取
+
+# 对外 Service
 service:
-  type: LoadBalancer
+  type: LoadBalancer       # 本地集群一般 NodePort/LoadBalancer 均可
   port: 8000
 
+# Ingress（需集群内有 nginx ingress controller）
 ingress:
   enabled: false
   className: nginx
   host: cloudforge.local
 
+# 容器资源配额 — 防止 Pod 占用过多资源影响节点
 resources:
-  limits:
-    cpu: 500m
+  limits:                  # 硬上限：超过会被 cgroup 杀
+    cpu: 500m              # 0.5 核
     memory: 256Mi
-  requests:
-    cpu: 100m
+  requests:                # 调度请求：保证至少分配到这么多
+    cpu: 100m              # 0.1 核
     memory: 128Mi
 
+# 水平自动扩缩容（HPA）
 autoscaling:
   enabled: false
-  minReplicas: 2
-  maxReplicas: 10
-  targetCPUUtilizationPercentage: 70
+  minReplicas: 2           # 最低 2 副本，保证基本高可用
+  maxReplicas: 10          # 最高 10 副本，防止峰值无限扩容
+  targetCPUUtilizationPercentage: 70  # CPU 利用率超 70% 触发扩容
 
+# Pod 中断预算（PDB）— 防止维护/节点驱逐时 Pod 全部被杀
 podDisruptionBudget:
   enabled: false
-  minAvailable: 1
+  minAvailable: 1          # 任意时刻至少有 1 个 Pod 可用
 
-# Application config
+# 应用运行时配置（写入 ConfigMap，注入 CF_* 环境变量）
 config:
-  logLevel: "INFO"
-  logFormat: "json"
+  logLevel: "INFO"         # structlog 日志级别
+  logFormat: "json"        # K8s 默认 JSON 格式，便于 Loki 采集
 
-# External services — K8s-native Deployments defined in postgres.yaml / redis.yaml
-# (Bitnami subcharts are NOT listed in Chart.yaml → helm won't try to install them)
+# 外部依赖（本项目内置简易 Deployment 供演示；未使用 Bitnami subchart）
+# 切换到 Bitnami 可在 Chart.yaml 的 dependencies 中声明
 postgresql:
   enabled: false
 redis:
   enabled: false
 
-# Secrets (demo-only; use Sealed Secrets for production)
+# 机密配置（写入 Secret；演示环境明文，生产请换 Sealed Secrets / ESO）
 secrets:
   databaseUrl: "postgresql+asyncpg://cloudforge:cloudforge@cloudforge-pg:5432/cloudforge"
   redisUrl: "redis://cloudforge-redis:6379/0"
-  secretKey: "k8s-deploy-dev-key-32-chars!!"
+  secretKey: "k8s-deploy-dev-key-32-chars!!"  # JWT/签名密钥，长度建议 ≥ 32
 
-# Canary deployment
+# 金丝雀发布
+# 用法：helm upgrade cloudforge ./chart --set canary.enabled=true,canary.weight=10
 canary:
-  enabled: false
-  weight: 0
-  replicas: 1
-  tag: latest  # override to deploy a different image version
+  enabled: false           # 开关：是否创建金丝雀 Deployment/Service/Ingress
+  weight: 0                # Nginx 切给金丝雀的流量权重（0-100）
+  replicas: 1              # 金丝雀副本数
+  tag: latest              # 金丝雀镜像 tag，一般设置为新版本 short sha
 
-# Observability
+# 可观测性 CRD（需先安装 kube-prometheus-stack）
 observability:
   serviceMonitor:
-    enabled: false
+    enabled: false         # 创建 ServiceMonitor，让 Prometheus 自动发现 /metrics
   prometheusRule:
-    enabled: false
+    enabled: false         # 创建 PrometheusRule（3 条告警规则）
 
-# Grafana dashboard provisioning (requires kube-prometheus-stack with sidecar)
+# Grafana Dashboard 自动注入（kube-prometheus-stack 的 sidecar 会扫含 grafana_dashboard: "1" 标签的 ConfigMap）
 grafanaDashboard:
   enabled: false
