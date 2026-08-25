@@ -1,4 +1,4 @@
-# CloudForge 🏗️
+# CloudForge 
 
 **云原生全栈微服务运维平台** — 从代码到 Kubernetes 生产部署，自带可观测性与 CI/CD 的实战项目。
 
@@ -16,7 +16,7 @@
 
 ---
 
-## 亮点
+## 关键设计与实现
 
 - 🔁 **GitOps 闭环** — `git push` → GitHub Actions 构建多架构镜像 → ArgoCD 自动同步到 K8s，Git 即生产环境真相源
 - 📊 **可观测性三支柱打通** — OTel Trace + Prometheus Metrics + Loki Logs，日志点击 `trace_id` 一键跳转 Tempo 完整调用链

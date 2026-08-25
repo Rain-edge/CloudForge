@@ -1,83 +1,70 @@
-# ──────────────────────────────────────────────────────────
 # CloudForge 本地开发环境 — Docker Compose 编排
-# =================================================
-# 本文件定义三个服务：
-#   app      — FastAPI 应用（监听 8000 端口）
-#   postgres — PostgreSQL 14 数据库（监听 5432 端口）
-#   redis    — Redis 7 缓存（监听 6379 端口，预留为 Celery Broker）
+# 服务：app（FastAPI）/ postgres / redis
+# 启动：docker compose up -d    停止：docker compose down -v
 #
-# 启动命令：
-#   docker compose up -d        # 后台启动
-#   docker compose down -v      # 停止并删除卷数据
-#
-# 注意事项：
-#   - app 服务挂载了 ./app 目录实现热重载（不重新构建镜像即可看到代码变更）
-#   - depends_on + healthcheck 确保启动顺序：postgres → redis → app
-#   - PostgreSQL 数据持久化到命名卷 pgdata（即使容器删除数据也不丢）
-#   - CF_ 环境变量对应 app/core/config.py 中的 pydantic-settings 字段
-# ──────────────────────────────────────────────────────────
+# 说明：
+#   - 容器间通过服务名（postgres / redis）通信，环境变量对应 CF_ 前缀
+#   - depends_on 配合 healthcheck，确保 PG 和 Redis 就绪后再启应用
+#   - pgdata 命名卷持久化 PostgreSQL 数据（Redis 当前不持久化，仅作演示缓存/Broker）
+#   - app 源码挂载为卷，修改代码无需重建镜像；如需真·热重载请在启动命令加 --reload
 
 version: "3.9"
 
 services:
 
-  # ===== FastAPI 应用 =====
+  # FastAPI 应用
   app:
     build:
-      context: .                # Docker 构建上下文（项目根目录）
+      context: .
       dockerfile: docker/Dockerfile
-    restart: unless-stopped     # 应用崩溃后自动重启
+    restart: unless-stopped
     ports:
-      - "8000:8000"             # 主机:容器
+      - "8000:8000"
     environment:
-      # 容器内部通信使用服务名（postgres / redis）而非 localhost
+      # 容器内用服务名而非 localhost 通信
       - CF_DATABASE_URL=postgresql+asyncpg://cloudforge:cloudforge@postgres:5432/cloudforge
       - CF_REDIS_URL=redis://redis:6379/0
       - CF_SECRET_KEY=dev-***************************tion   # 演示环境密钥，生产必须更换
       - CF_LOG_LEVEL=INFO
     depends_on:
       postgres:
-        condition: service_healthy  # 等待 PostgreSQL 健康检查通过
+        condition: service_healthy
       redis:
-        condition: service_healthy  # 等待 Redis 健康检查通过
+        condition: service_healthy
     volumes:
-      # 热重载：修改本地 app/ 代码后自动生效（uvicorn --reload 需额外配置）
-      - ./app:/app/app
+      - ./app:/app/app            # 修改本地 app/ 代码后容器内同步（无需重建镜像）
 
-  # ===== PostgreSQL 14 =====
+  # PostgreSQL 14
   postgres:
-    image: postgres:14-alpine   # Alpine 版本更小（~80MB vs ~150MB）
-    restart: unless-stopped     # 容器崩溃或 Docker 重启后自动恢复（防止 PG 进程丢失）
+    image: postgres:14-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: cloudforge
-      POSTGRES_PASSWORD: "cloudforge"          # 演示环境密码，生产使用 secrets 管理
+      POSTGRES_PASSWORD: "cloudforge"      # 演示环境密码，生产使用 secrets 管理
       POSTGRES_DB: cloudforge
     ports:
-      - "5432:5432"             # 暴露端口方便本地 pgAdmin/DBeaver 连接
+      - "5432:5432"                # 暴露端口便于 pgAdmin / DBeaver 直连
     volumes:
-      # 命名卷：数据持久化，容器删除后数据保留
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      # pg_isready：PostgreSQL 官方健康检查工具
-      # -U cloudforge：使用 cloudforge 用户连接
+      # pg_isready：PG 官方健康检查工具，只在进程可连时返回 0
       test: ["CMD-SHELL", "pg_isready -U cloudforge"]
       interval: 3s
       timeout: 3s
-      retries: 5                # 最多允许 5 次失败（共 15s），之后标记为 unhealthy
+      retries: 5                   # 累计 15s 失败标记为 unhealthy
 
-  # ===== Redis 7 =====
+  # Redis 7（预留缓存 / Celery Broker）
   redis:
     image: redis:7-alpine
-    restart: unless-stopped     # 容器崩溃后自动恢复
+    restart: unless-stopped
     ports:
       - "6379:6379"
     healthcheck:
-      # redis-cli ping → 返回 PONG 表示 Redis 已就绪
+      # 返回 PONG 表示 Redis 可正常响应
       test: ["CMD", "redis-cli", "ping"]
       interval: 3s
       timeout: 3s
       retries: 5
 
-# ── 命名卷定义 ────────────────────────────────────────────
 volumes:
-  pgdata:   # PostgreSQL 数据持久化卷
+  pgdata:
