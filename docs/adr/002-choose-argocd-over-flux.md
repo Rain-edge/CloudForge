@@ -1,25 +1,25 @@
-# ADR-002: Use ArgoCD over Flux for GitOps
+# ADR-002: GitOps 用 ArgoCD 而不是 Flux
 
-## Status
-Accepted
+## 状态
+已接受
 
-## Context
-The project needs a GitOps tool to automatically synchronize the cluster state with the Git repository. Two CNCF-graduated options exist: ArgoCD and Flux CD.
+## 背景
+项目需要一个 GitOps 工具，让集群状态自动跟 Git 仓库同步。候选是 CNCF 毕业的两个项目：ArgoCD 和 Flux CD。
 
-## Decision
-Use **ArgoCD**.
+## 决策
+用 **ArgoCD**。
 
-## Rationale
-1. **Web UI**: ArgoCD provides a built-in web dashboard showing application health, sync status, and resource tree. This is valuable for demonstrations and interview presentations — you can visually show "here's my app, it's synced, this is the diff."
-2. **Simplicity for single-cluster**: Flux's multi-tenancy model (Kustomize overlays, Image Automation) adds complexity for a single-cluster demo project. ArgoCD's Application CRD maps directly to a Helm chart path.
-3. **Market presence**: ArgoCD has broader adoption in job postings and enterprise environments (Red Hat OpenShift GitOps is ArgoCD-based).
-4. **Canary integration**: ArgoCD integrates with Argo Rollouts for progressive delivery (future roadmap).
+## 理由
+1. **自带 Web UI**：ArgoCD 有内置 Dashboard，能直接看应用健康状态、同步状态、资源树，排障和演示都方便
+2. **单集群场景够用**：Flux 的多租户模型（Kustomize overlays、镜像自动化）对单集群项目是多余的复杂度；ArgoCD 的 Application 直接对应 Helm chart 路径，理解成本低
+3. **生态更常见**：ArgoCD 在招聘要求和生产环境里出现得更多（Red Hat OpenShift GitOps 就是基于 ArgoCD 的）
+4. **金丝雀扩展**：以后要做渐进式发布，可以直接接 Argo Rollouts
 
-## Tradeoffs
-- **Flux advantage**: Flux's image automation controller can automatically update image tags when new versions are pushed to the registry. ArgoCD requires explicit manifest updates (or Argo CD Image Updater).
-- **Mitigation**: The GitHub Actions CI pipeline includes a `create-manifest` job that creates multi-arch manifests. For a demo project, explicit image tag updates in the Git repo provide a clearer audit trail and are easier to explain.
+## 权衡
+- **Flux 的优势**：它的镜像自动化控制器能在镜像仓库有新版本时自动更新镜像 tag；ArgoCD 需要显式改清单（或用 Argo CD Image Updater）
+- **对本项目的处理**：CI 流水线里已有 build-push 和 manifest 步骤，镜像 tag 显式提交到 Git 反而留下清晰的审计记录，也好解释
 
-## Consequences
-- ArgoCD monitors the `chart/` directory in the Git repo
-- Any push to `main` triggers automatic sync within 3 minutes
-- The ArgoCD web UI is accessible via `kubectl port-forward` for demonstrations
+## 结果
+- ArgoCD 监听 Git 仓库的 chart/ 目录
+- push 到 main 后 3 分钟内自动同步
+- Web UI 通过 kubectl port-forward 访问

@@ -1,26 +1,24 @@
-# ADR-001: Use k3s/k3d instead of manual binary K8s deployment
+# ADR-001: 用 k3s/k3d 代替手动二进制部署 K8s
 
-## Status
-Accepted
+## 状态
+已接受
 
-## Context
-The project initially considered manually deploying Kubernetes from binaries (downloading kube-apiserver, kube-controller-manager, kube-scheduler, kubelet, kube-proxy, etcd, and manually generating TLS certificates). This approach is commonly suggested in "learn K8s the hard way" guides.
+## 背景
+最初考虑过按 "K8s the hard way" 的方式手动部署 Kubernetes（下载 kube-apiserver、kube-controller-manager、kube-scheduler、kubelet、kube-proxy、etcd，手动生成 TLS 证书）。这种方式教程很多，但配置量巨大，大部分时间花在证书链、systemd 单元文件、CNI 插件上。
 
-## Decision
-Use **k3s** (via **k3d** for local development) instead of manual binary deployment.
+## 决策
+用 **k3s**（本地开发通过 **k3d** 起集群）代替手动二进制部署。
 
-## Rationale
-1. **Time efficiency**: Manual binary deployment requires hours of configuration and debugging (certificate chains, systemd unit files, CNI plugin setup). That time is better invested in GitOps, observability, and resilience testing — areas with higher interview differentiation.
-2. **Industry relevance**: k3s is a CNCF sandbox project used in production for edge/IoT. Demonstrating familiarity with k3s is more practically useful than proving you can follow a 20-step TLS setup guide.
-3. **K8s API compatibility**: k3s is fully conformant with the Kubernetes API. Everything that runs on k3s runs on standard K8s. The learning value for application-level K8s concepts (Deployments, Services, Ingress, HPA, RBAC) is identical.
-4. **Demonstrates architectural understanding**: The README and ADR explain *why* k3s differs (SQLite instead of etcd by default, embedded components) — showing deeper understanding than just "I followed a tutorial."
+## 理由
+1. **时间效率**：手动部署光证书和组件配置就要好几个小时，这些时间投到 GitOps、可观测性、弹性验证上更值
+2. **生产可用**：k3s 是 CNCF sandbox 项目，边缘/IoT 场景有大量生产使用，不是玩具
+3. **API 完全兼容**：k3s 通过 K8s 一致性测试，跑在 k3s 上的东西（Deployment、Service、Ingress、HPA、RBAC）在标准 K8s 上一模一样，学习价值没有损失
+4. **差异本身是知识点**：k3s 默认用 SQLite 代替 etcd、内置组件更精简——理解这些差异本身就是对 K8s 架构的理解
 
-## Tradeoffs
-- **Lost**: Deep understanding of K8s control plane certificate management and component communication
-- **Gained**: Practical experience with Helm, ArgoCD, HPA, Ingress controllers — skills directly applicable to any K8s role
-- **Mitigation**: K8s control plane internals can be learned from "Kubernetes The Hard Way" as a separate exercise; the README links to relevant resources
+## 权衡
+- **失去**：手动搭建控制平面的细节经验（证书管理、组件间通信）
+- **得到**：Helm、ArgoCD、HPA、Ingress 这些实际干活要用的东西
 
-## Consequences
-- Cluster setup is a single `k3d cluster create` command
-- All Kubernetes manifests, Helm charts, and GitOps workflows remain fully compatible with any standard K8s distribution (EKS, AKS, GKE)
-- More project time available for differentiating features (OTel, Tempo, Canary, Chaos)
+## 结果
+- 本地用 k3d 一键起 1 server + 2 agents 集群（scripts/setup-k3d.sh）
+- 集群兼容标准 kubectl 命令和 K8s API
