@@ -99,7 +99,13 @@ pool_pre_ping、uvicorn 单 worker）。SQLAlchemy async 层在 60 并发下比�
 修复后 Tempo 收到 cloudforge trace（23-69ms），span 结构含 HTTP + SQL 调用链，
 JSON 日志携带 trace_id/span_id/request_id，Grafana 可经 Loki derivedFields 跳转 Tempo。
 
-## 9. 本轮修复清单（git commit 内容）
+## 9. ArgoCD GitOps + selfHeal 实测
+
+- 安装 argo/argo-cd（helm，NodePort 模式），应用 `argocd/cloudforge-app.yaml`（repoURL=github.com/Rain-edge/CloudForge, targetRevision=master, path=chart, selfHeal+prune）
+- ArgoCD 自动同步部署到 cloudforge namespace（应用 2 副本 + PG + Redis 全部 Running，零手动 kubectl）
+- **selfHeal 实测**（argocd-selfheal-watch.log）：19:34:54 `kubectl scale --replicas=1` 制造偏离 → **19:35:00（6 秒内）自动恢复为 2** → 19:35:05 就绪。零人工干预
+
+## 10. 本轮修复清单（git commit 内容）
 
 - `chart/templates/configmap.yaml` + `chart/values.yaml`：注入 OTEL_EXPORTER_OTLP_ENDPOINT（tempo.monitoring:4317）
 - `chart/templates/deployment.yaml`：HPA 启用时不渲染 replicas（解决 helm upgrade 与 scale subresource 冲突）；主版本加 component: stable 标签

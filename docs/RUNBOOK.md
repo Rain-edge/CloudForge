@@ -151,17 +151,18 @@ kubectl get pods -w               # 记录副本数变化
 
 历史实测（git 提交有据）：`995b787 scale to 3 replicas via GitOps` → `dccf67d rollback: scale back to 2 replicas`——通过 GitOps 把副本 2 → 3 再回 2，ArgoCD 全程自动同步，零手工 kubectl。
 
-selfHeal 实验（待补）：
+selfHeal 实验（2026-08-28 实测，证据 argocd-selfheal-watch.log）：
 
 ```powershell
 # 故意制造声明偏离：手动把副本数改成 1（Git 里是 2）
 kubectl scale deployment cloudforge -n cloudforge --replicas=1
 # 观察 ArgoCD 自动恢复（selfHeal: true）
 kubectl get deployment cloudforge -n cloudforge -w
-# 预期：几十秒内副本数被 ArgoCD 恢复为 Git 中声明的 2
 ```
 
-记录：从手动修改到自动恢复的耗时 ____ 秒；`kubectl get deployment` 恢复后的副本数 ____。
+实测结果：19:34:54 手动缩容至 1 → **19:35:00（6 秒内）ArgoCD 自动恢复为 Git 声明的 2 副本** → 19:35:05 第二个副本就绪。全程零人工干预。
+
+历史实测（git 提交有据）：`995b787 scale to 3 replicas via GitOps` → `dccf67d rollback: scale back to 2 replicas`——通过 GitOps 把副本 2 → 3 再回 2，ArgoCD 全程自动同步。
 
 ### 4. 金丝雀秒级回滚计时
 
