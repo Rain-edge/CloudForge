@@ -11,7 +11,11 @@ metadata:
   labels:
     {{- include "cloudforge.labels" . | nindent 4 }}
 spec:
+  # HPA 启用时由 HPA 控制器接管副本数，不渲染 replicas 字段
+  # （否则 helm upgrade 与 scale subresource 产生 apply 冲突）
+  {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
+  {{- end }}
   selector:
     matchLabels:
       app: {{ include "cloudforge.name" . }}
@@ -24,6 +28,7 @@ spec:
         prometheus.io/path: "/metrics"
       labels:
         app: {{ include "cloudforge.name" . }}
+        component: stable    # 主版本标识；金丝雀为 component: canary，主 Service 据此精确选择
     spec:
       terminationGracePeriodSeconds: 30   # 优雅停机：给 uvicorn 30s 处理完连接
       securityContext:
@@ -32,7 +37,7 @@ spec:
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - containerPort: 8000
               protocol: TCP
@@ -43,9 +48,9 @@ spec:
                 name: {{ include "cloudforge.fullname" . }}-secret
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          livenessProbe:                 # 存活探针：失败就 kill 并重启容器
+          livenessProbe:                 # 存活探针：只检查进程存活，不依赖 DB（避免 DB 抖动引发重启风暴）
             httpGet:
-              path: /health
+              path: /health/live
               port: 8000
             initialDelaySeconds: 10
             periodSeconds: 15

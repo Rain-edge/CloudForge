@@ -12,3 +12,6 @@ metadata:
 data:
   CF_LOG_LEVEL: {{ .Values.config.logLevel | quote }}
   CF_LOG_FORMAT: {{ .Values.config.logFormat | quote }}
+  # OTel OTLP/gRPC 端点：K8s 部署时 Tempo 在 monitoring namespace（跨 ns 用 <svc>.<ns>）
+  # 本地 compose 由 docker-compose.yml 的 OTEL_EXPORTER_OTLP_ENDPOINT 覆盖（Jaeger）
+  OTEL_EXPORTER_OTLP_ENDPOINT: {{ .Values.config.otelEndpoint | quote }}

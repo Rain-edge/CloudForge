@@ -17,3 +17,12 @@ async def test_health_ok(client: AsyncClient):
     data = resp.json()
     assert data["status"] in ("ok", "degraded")
     assert data["db"] in ("connected", "error")
+
+
+@pytest.mark.asyncio
+async def test_health_live_always_ok(client: AsyncClient):
+    """/health/live 不依赖 DB，任何情况下都应返回 200（liveness 探针）。"""
+    resp = await client.get("/health/live")
+
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "alive"}

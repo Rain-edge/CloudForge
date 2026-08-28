@@ -3,10 +3,9 @@ import { check, sleep, group } from "k6";
 
 export const options = {
   stages: [
-    { duration: "30s", target: 20 },
-    { duration: "1m", target: 50 },
-    { duration: "2m", target: 50 },
-    { duration: "30s", target: 0 },
+    { duration: "30s", target: 20 },   // 预热：20 VU 起步，让连接池/缓存先热起来
+    { duration: "90s", target: 50 },   // 主压测：50 个虚拟用户（VU）持续 90 秒
+    { duration: "30s", target: 0 },    // 收尾：逐步降到 0，观察缩容
   ],
   thresholds: {
     http_req_duration: ["p(95)<500"],

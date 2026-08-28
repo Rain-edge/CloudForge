@@ -15,12 +15,20 @@ data:
         url: http://loki:3100
         jsonData:
           maxLines: 1000
+          # 日志 → Trace 联动：从 JSON 日志行提取 trace_id 字段，
+          # 点击即可跳转到 Tempo 查看完整调用链（datasourceUid 对应 Tempo 的固定 uid）
+          derivedFields:
+            - name: TraceID
+              matcherRegex: '"trace_id":"([0-9a-f]{32})"'
+              url: '${__value.raw}'
+              datasourceUid: tempo
   tempo-datasource.yaml: |
     apiVersion: 1
     datasources:
       - name: Tempo
         type: tempo
         access: proxy
+        uid: tempo                 # 固定 uid，供 Loki derivedFields 引用
         url: http://tempo:3200
         jsonData:
           httpMethod: GET

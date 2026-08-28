@@ -11,6 +11,16 @@ from app.core.database import async_session
 router = APIRouter(tags=["health"])
 
 
+@router.get("/health/live")
+async def health_live():
+    """存活探针：只检查进程活着，不依赖任何外部服务。
+
+    与 /health（readiness 用，依赖 DB）分离的意义：
+    DB 抖动时 readiness 摘流即可，不应触发 liveness 杀 Pod 重启（避免重启风暴）。
+    """
+    return {"status": "alive"}
+
+
 @router.get("/health")
 async def health():
     """验证数据库连接；故障时返回 503 触发 K8s 摘流。"""

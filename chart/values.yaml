@@ -9,10 +9,14 @@ fullnameOverride: "" # 覆盖完整资源名（含 Release.Name）
 replicaCount: 2
 
 # 应用镜像
+# 本地 k3d 演示（默认）：先用 docker build + k3d image import 把镜像导入集群，
+#   repository 保持 cloudforge--app（本地镜像名），IfNotPresent 可正常使用
+# GitOps/CI 模式：CI 会用 scripts/bump-chart-values.py 自动改写为
+#   repository=<dockerhub-user>/cloudforge、tag=<short-sha>、pullPolicy=IfNotPresent
 image:
   repository: cloudforge--app
   tag: latest
-  pullPolicy: Never        # 本地 k3d/k3s 演示使用 Never，避免去远端拉取
+  pullPolicy: IfNotPresent    # 本地存在则不拉取；不存在时回退远端拉取
 
 # 对外 Service
 service:
@@ -43,13 +47,14 @@ autoscaling:
 
 # Pod 中断预算（PDB）— 防止维护/节点驱逐时 Pod 全部被杀
 podDisruptionBudget:
-  enabled: false
+  enabled: true
   minAvailable: 1          # 任意时刻至少有 1 个 Pod 可用
 
 # 应用运行时配置（写入 ConfigMap，注入 CF_* 环境变量）
 config:
   logLevel: "INFO"         # structlog 日志级别
   logFormat: "json"        # K8s 默认 JSON 格式，便于 Loki 采集
+  otelEndpoint: "http://tempo.monitoring:4317"  # OTel OTLP/gRPC（Tempo 在 monitoring ns）
 
 # 外部依赖（本项目内置简易 Deployment 供演示；未使用 Bitnami subchart）
 # 切换到 Bitnami 可在 Chart.yaml 的 dependencies 中声明
@@ -71,6 +76,16 @@ canary:
   weight: 0                # Nginx 切给金丝雀的流量权重（0-100）
   replicas: 1              # 金丝雀副本数
   tag: latest              # 金丝雀镜像 tag，一般设置为新版本 short sha
+
+# Alertmanager Webhook 接收端（templates/alertmanager-config.yaml 使用）
+# 演示环境默认指向 CloudForge 应用自身的接收端点（同 namespace 用 Service 短名即可）
+# 若 Alertmanager 与应用不在同一 namespace，填 FQDN，如 http://cloudforge.cloudforge.svc.cluster.local:8000
+# 生产环境替换为企业微信/钉钉/飞书真实 Webhook URL
+alertmanager:
+  # 演示环境默认指向 CloudForge 应用自身的接收端点
+  # 必须用 FQDN：Alertmanager 在 monitoring ns，短名 cloudforge 解析不到 default ns 的 Service
+  # 部署到其他命名空间时改为 http://<service>.<namespace>.svc.cluster.local:8000/api/v1/alertmanager
+  webhookUrl: "http://cloudforge.default.svc.cluster.local:8000/api/v1/alertmanager"
 
 # 可观测性 CRD（需先安装 kube-prometheus-stack）
 observability:

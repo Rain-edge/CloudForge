@@ -13,6 +13,7 @@ spec:
   type: {{ .Values.service.type }}
   selector:
     app: {{ include "cloudforge.name" . }}
+    component: stable    # 精确匹配主版本（金丝雀 component=canary 由 service-canary 单独承载）
   ports:
     - port: {{ .Values.service.port }}
       targetPort: 8000

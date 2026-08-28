@@ -15,6 +15,7 @@ from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.cache import cache_get_tasks, cache_invalidate_tasks, cache_set_tasks
 from app.core.database import get_db
 from app.models.task import Task
 from app.schemas.task import TaskCreate, TaskResponse, TaskUpdate
@@ -24,9 +25,19 @@ router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 @router.get("", response_model=list[TaskResponse])
 async def list_tasks(db: AsyncSession = Depends(get_db)):
-    """获取所有任务，按创建时间倒序。"""
+    """获取所有任务，按创建时间倒序；优先读 Redis 缓存（命中省一次 DB 查询）。"""
+    # 读路径：缓存命中直接返回（dict 列表，response_model 会再校验一次）
+    cached = await cache_get_tasks()
+    if cached is not None:
+        return cached
+
     result = await db.execute(select(Task).order_by(Task.created_at.desc()))
-    return result.scalars().all()
+    tasks = result.scalars().all()
+
+    # 回填缓存：ORM → JSON 兼容 dict（datetime 转 ISO 字符串）
+    payload = [TaskResponse.model_validate(t).model_dump(mode="json") for t in tasks]
+    await cache_set_tasks(payload)
+    return tasks
 
 
 @router.post("", response_model=TaskResponse, status_code=status.HTTP_201_CREATED)
@@ -36,6 +47,7 @@ async def create_task(body: TaskCreate, db: AsyncSession = Depends(get_db)):
     db.add(task)
     await db.commit()
     await db.refresh(task)
+    await cache_invalidate_tasks()  # 写操作后失效列表缓存
     return task
 
 
@@ -63,6 +75,7 @@ async def update_task(
 
     await db.commit()
     await db.refresh(task)
+    await cache_invalidate_tasks()  # 写操作后失效列表缓存
     return task
 
 
@@ -74,4 +87,5 @@ async def delete_task(task_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Task not found")
     await db.delete(task)
     await db.commit()
+    await cache_invalidate_tasks()  # 写操作后失效列表缓存
     return Response(status_code=status.HTTP_204_NO_CONTENT)

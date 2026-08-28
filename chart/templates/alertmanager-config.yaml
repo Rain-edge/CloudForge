@@ -4,7 +4,7 @@
   配置要点：
     - group_by alertname：同一类告警合并发送，不刷屏
     - critical 告警会抑制（inhibit）warning 同类型告警，避免一个问题发两条
-    - 默认 receiver=webhook：发送到企业微信/钉钉/飞书等自定义 Webhook
+    - 默认 receiver=webhook：演示环境指向 CloudForge 自身的接收端点，生产换企业微信/钉钉/飞书
 */ -}}
 apiVersion: v1
 kind: Secret
@@ -25,7 +25,8 @@ stringData:
     receivers:
       - name: 'webhook'
         webhook_configs:
-          - url: 'https://webhook.site/your-unique-id'  # TODO: 替换为企业微信/钉钉/飞书真实 Webhook URL
+          # 演示环境默认指向 CloudForge 应用自身的接收端点（--set alertmanager.webhookUrl 覆盖）
+          - url: {{ .Values.alertmanager.webhookUrl | quote }}
             send_resolved: true
       - name: 'null'                # 调试用：静默所有告警，把 route.receiver 改 null 即可
     inhibit_rules:

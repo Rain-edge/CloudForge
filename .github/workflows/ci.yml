@@ -2,16 +2,16 @@
 # 四个 job，顺序依赖：validate → test → build-push → create-manifest
 # 说明：
 #   - validate：Helm lint/template + Grafana Dashboard JSON 校验，不依赖任何服务
-#   - test：pytest 跑 14 个单元测试（用 aiosqlite 内存库，无需真实 PG）
+#   - test：pytest 跑 21 个单元测试（用 aiosqlite 内存库，无需真实 PG）
 #   - build-push：矩阵构建 amd64/arm64 双架构镜像，分别 push 到 Docker Hub
 #   - create-manifest：用 buildx imagetools 把两架构合并成多架构 manifest
 name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [master]
   pull_request:
-    branches: [main]
+    branches: [master]
 
 env:
   DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}   # 在 GitHub → Settings → Secrets 中配置
@@ -108,7 +108,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       # 合并 manifest：sha-abc1234-amd64 + sha-abc1234-arm64 → sha-abc1234（多架构索引）
-      # 同时打 latest 标签，ArgoCD 默认拉 latest 就能在任意架构节点运行
+      # 同时打 latest 标签，便于本地演示直接拉 latest
       - name: 合并多架构 manifest 并推送
         run: |
           SHORT_SHA=$(echo '${{ github.sha }}' | cut -c1-7)
@@ -119,3 +119,16 @@ jobs:
           docker buildx imagetools create -t "${REPO}:latest" \
             "${REPO}:${SHORT_SHA}-amd64" \
             "${REPO}:${SHORT_SHA}-arm64"
+
+      # GitOps 闭环：把新镜像 repository/tag 写回 chart/values.yaml 并 push
+      # ArgoCD 检测到 chart 变更 → 自动同步 → 集群滚动更新到新版本
+      # commit message 带 [skip ci]，避免 push 再次触发本流水线（防死循环）
+      - name: 更新 Chart values 镜像 tag（GitOps 闭环）
+        run: |
+          python3 scripts/bump-chart-values.py "${{ env.DOCKERHUB_USER }}" "${{ env.IMAGE_NAME }}" "${{ github.sha }}"
+          git config user.name "cloudforge-ci"
+          git config user.email "ci@cloudforge.local"
+          git add chart/values.yaml
+          SHORT_SHA=$(echo '${{ github.sha }}' | cut -c1-7)
+          git commit -m "chore(ci): bump image to ${{ env.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}:${SHORT_SHA} [skip ci]"
+          git push origin HEAD:master

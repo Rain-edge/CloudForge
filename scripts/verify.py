@@ -15,6 +15,11 @@ async def verify():
         ok = r.status_code in (200, 503) and data["status"] in ("ok", "degraded")
         results.append(("GET /health", ok, str(data)))
 
+        # /health/live：不依赖 DB，必须 200（liveness 探针）
+        r = await c.get("/health/live")
+        ok = r.status_code == 200 and r.json().get("status") == "alive"
+        results.append(("GET /health/live", ok, str(r.json())))
+
         # /metrics
         r = await c.get("/metrics")
         lines = r.text.strip().split("\n")

@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     secret_key: str = "change-me-in-production"
     # structlog 日志级别
     log_level: str = "INFO"
+    # structlog 输出格式：json（K8s 默认，供 Loki 采集）或 console（本地开发可读）
+    log_format: str = "json"
 
     model_config = {"env_prefix": "CF_", "env_file": ".env"}
 

@@ -25,6 +25,8 @@
   金丝雀发布：
     当前权重：{{ .Values.canary.weight }}%
     提升权重：helm upgrade {{ .Release.Name }} ./chart --set canary.weight=50
-    异常回滚：kubectl delete deployment {{ include "cloudforge.fullname" . }}-canary
+    异常回滚：helm upgrade {{ .Release.Name }} ./chart --set canary.weight=0
+             （或 --set canary.enabled=false 彻底移除；不要 kubectl delete deployment，
+               否则 canary Service/Ingress 注解残留 → nginx 转发空后端 → 502）
 {{- end }}
 -----------------------------------------

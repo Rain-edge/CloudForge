@@ -14,8 +14,8 @@ metadata:
 spec:
   project: default                           # 归属于 default 项目（一般不做多租户就用它）
   source:                                    # 配置源：Git 仓库的 Chart 目录
-    repoURL: https://github.com/Rain-edge/cloudforge
-    targetRevision: main                     # 跟踪 main 分支（也可写 tag 如 v0.1.0）
+    repoURL: https://github.com/Rain-edge/CloudForge
+    targetRevision: master                   # 跟踪 master 分支（也可写 tag 如 v0.1.0）
     path: chart                              # Chart 在仓库中的相对路径
   destination:                               # 部署目标集群 & 命名空间
     server: https://kubernetes.default.svc   # 同一集群（ArgoCD 运行在目标集群中）；多集群时填 cluster secret 名

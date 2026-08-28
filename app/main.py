@@ -9,11 +9,15 @@ from fastapi import FastAPI
 from sqlalchemy import text
 
 from app.core.database import engine
+from app.core.logging import setup_logging
 from app.core.metrics import setup_metrics
 from app.core.telemetry import setup_telemetry
 from app.middleware.logging import RequestIDMiddleware
 from app.models import Base  # noqa: F401  确保所有 ORM 模型被导入注册
-from app.routers import health, tasks
+from app.routers import alerts, health, tasks
+
+# 最先配置日志：后续模块的 structlog 输出（含中间件绑定的 trace_id）都走统一格式
+setup_logging()
 
 
 @asynccontextmanager
@@ -54,3 +58,4 @@ setup_metrics(app)
 
 app.include_router(health.router)
 app.include_router(tasks.router)
+app.include_router(alerts.router)
