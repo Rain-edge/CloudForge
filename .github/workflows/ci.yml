@@ -12,6 +12,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:          # 手动触发（Actions 页 → Run workflow），避免用空 commit 触发污染历史
 
 # GitOps 闭环需要 CI 把新镜像 tag 写回 chart/values.yaml 并 push（默认 GITHUB_TOKEN 只读会 403）
 permissions:
