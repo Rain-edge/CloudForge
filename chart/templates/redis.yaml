@@ -1,0 +1,47 @@
+{{- /*
+  Redis 演示 Deployment + Service
+  ⚠️  演示用途：单副本、无持久化
+  生产请使用 Bitnami redis subchart 或 Redis Cluster Operator
+*/ -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "cloudforge.fullname" . }}-redis
+  labels:
+    {{- include "cloudforge.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ include "cloudforge.fullname" . }}-redis
+  template:
+    metadata:
+      labels:
+        app: {{ include "cloudforge.fullname" . }}-redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 6379
+          readinessProbe:     # redis-cli ping 确认 Redis 正常响应后才接流量
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 3
+            periodSeconds: 3
+            timeoutSeconds: 3
+            failureThreshold: 5
+---
+# 集群内部 Service：供 FastAPI 通过 cloudforge-redis:6379 访问
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "cloudforge.fullname" . }}-redis
+  labels:
+    {{- include "cloudforge.labels" . | nindent 4 }}
+spec:
+  ports:
+    - port: 6379
+  selector:
+    app: {{ include "cloudforge.fullname" . }}-redis

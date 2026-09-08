@@ -1,0 +1,24 @@
+{{- /*
+  金丝雀 Service：仅匹配 component=canary 的 Pod
+  供 Ingress canary-weight 做按权重分流的后端
+*/ -}}
+{{- if .Values.canary.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "cloudforge.fullname" . }}-canary
+  labels:
+    {{- include "cloudforge.labels" . | nindent 4 }}
+    app: {{ include "cloudforge.name" . }}
+    app.kubernetes.io/component: canary
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    app: {{ include "cloudforge.name" . }}
+    component: canary
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: 8000
+      protocol: TCP
+      name: http
+{{- end }}

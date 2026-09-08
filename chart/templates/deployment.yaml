@@ -1,0 +1,77 @@
+{{- /*
+  主 Deployment：稳定版本的 CloudForge 应用
+  与金丝雀 Deployment 的区别：
+    - 主版本 selector 只有 app=cloudforge（Service 会匹配它和金丝雀）
+    - 金丝雀版本多了 component=canary 标签，供 Ingress weight 分流
+*/ -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "cloudforge.fullname" . }}
+  labels:
+    {{- include "cloudforge.labels" . | nindent 4 }}
+spec:
+  # HPA 启用时由 HPA 控制器接管副本数，不渲染 replicas 字段
+  # （否则 helm upgrade 与 scale subresource 产生 apply 冲突）
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      app: {{ include "cloudforge.name" . }}
+  template:
+    metadata:
+      # Prometheus 抓取注解（即使没装 ServiceMonitor，kube-prometheus-stack 也会按注解扫）
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+      labels:
+        app: {{ include "cloudforge.name" . }}
+        component: stable    # 主版本标识；金丝雀为 component: canary，主 Service 据此精确选择
+    spec:
+      terminationGracePeriodSeconds: 30   # 优雅停机：给 uvicorn 30s 处理完连接
+      securityContext:
+        runAsUser: 65534                 # nobody 用户，非 root 运行
+        runAsNonRoot: true
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: 8000
+              protocol: TCP
+          envFrom:                       # 从 ConfigMap + Secret 批量注入环境变量
+            - configMapRef:
+                name: {{ include "cloudforge.fullname" . }}-config
+            - secretRef:
+                name: {{ include "cloudforge.fullname" . }}-secret
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          livenessProbe:                 # 存活探针：只检查进程存活，不依赖 DB（避免 DB 抖动引发重启风暴）
+            httpGet:
+              path: /health/live
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:                # 就绪探针：失败就从 Service 摘流
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false   # 禁止 setuid 等提权
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp            # /tmp 是世界可写目录，挂 emptyDir 避免污染镜像层
+      volumes:
+        - name: tmp
+          emptyDir: {}

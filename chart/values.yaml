@@ -1,0 +1,99 @@
+# CloudForge Helm Chart 默认值
+# 部署时通过 --set key=value 或 -f custom-values.yaml 覆盖
+
+# 资源命名
+nameOverride: ""     # 覆盖 Chart.Name（cloudforge），生成资源名前缀
+fullnameOverride: "" # 覆盖完整资源名（含 Release.Name）
+
+# 主 Deployment 副本数（HPA 关闭时生效）
+replicaCount: 2
+
+# 应用镜像
+# 本地 k3d 演示（默认）：先用 docker build + k3d image import 把镜像导入集群，
+#   repository 保持 cloudforge--app（本地镜像名），IfNotPresent 可正常使用
+# GitOps/CI 模式：CI 会用 scripts/bump-chart-values.py 自动改写为
+#   repository=<dockerhub-user>/cloudforge、tag=<short-sha>、pullPolicy=IfNotPresent
+image:
+  repository: cloudforge--app
+  tag: latest
+  pullPolicy: IfNotPresent    # 本地存在则不拉取；不存在时回退远端拉取
+
+# 对外 Service
+service:
+  type: LoadBalancer       # 本地集群一般 NodePort/LoadBalancer 均可
+  port: 8000
+
+# Ingress（需集群内有 nginx ingress controller）
+ingress:
+  enabled: false
+  className: nginx
+  host: cloudforge.local
+
+# 容器资源配额 — 防止 Pod 占用过多资源影响节点
+resources:
+  limits:                  # 硬上限：超过会被 cgroup 杀
+    cpu: 500m              # 0.5 核
+    memory: 256Mi
+  requests:                # 调度请求：保证至少分配到这么多
+    cpu: 100m              # 0.1 核
+    memory: 128Mi
+
+# 水平自动扩缩容（HPA）
+autoscaling:
+  enabled: false
+  minReplicas: 2           # 最低 2 副本，保证基本高可用
+  maxReplicas: 10          # 最高 10 副本，防止峰值无限扩容
+  targetCPUUtilizationPercentage: 70  # CPU 利用率超 70% 触发扩容
+
+# Pod 中断预算（PDB）— 防止维护/节点驱逐时 Pod 全部被杀
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1          # 任意时刻至少有 1 个 Pod 可用
+
+# 应用运行时配置（写入 ConfigMap，注入 CF_* 环境变量）
+config:
+  logLevel: "INFO"         # structlog 日志级别
+  logFormat: "json"        # K8s 默认 JSON 格式，便于 Loki 采集
+  otelEndpoint: "http://tempo.monitoring:4317"  # OTel OTLP/gRPC（Tempo 在 monitoring ns）
+
+# 外部依赖（本项目内置简易 Deployment 供演示；未使用 Bitnami subchart）
+# 切换到 Bitnami 可在 Chart.yaml 的 dependencies 中声明
+postgresql:
+  enabled: false
+redis:
+  enabled: false
+
+# 机密配置（写入 Secret；演示环境明文，生产请换 Sealed Secrets / ESO）
+secrets:
+  databaseUrl: "postgresql+asyncpg://cloudforge:cloudforge@cloudforge-pg:5432/cloudforge"
+  redisUrl: "redis://cloudforge-redis:6379/0"
+  secretKey: "k8s-deploy-dev-key-32-chars!!"  # JWT/签名密钥，长度建议 ≥ 32
+
+# 金丝雀发布
+# 用法：helm upgrade cloudforge ./chart --set canary.enabled=true,canary.weight=10
+canary:
+  enabled: false           # 开关：是否创建金丝雀 Deployment/Service/Ingress
+  weight: 0                # Nginx 切给金丝雀的流量权重（0-100）
+  replicas: 1              # 金丝雀副本数
+  tag: latest              # 金丝雀镜像 tag，一般设置为新版本 short sha
+
+# Alertmanager Webhook 接收端（templates/alertmanager-config.yaml 使用）
+# 演示环境默认指向 CloudForge 应用自身的接收端点（同 namespace 用 Service 短名即可）
+# 若 Alertmanager 与应用不在同一 namespace，填 FQDN，如 http://cloudforge.cloudforge.svc.cluster.local:8000
+# 生产环境替换为企业微信/钉钉/飞书真实 Webhook URL
+alertmanager:
+  # 演示环境默认指向 CloudForge 应用自身的接收端点
+  # 必须用 FQDN：Alertmanager 在 monitoring ns，短名 cloudforge 解析不到 default ns 的 Service
+  # 部署到其他命名空间时改为 http://<service>.<namespace>.svc.cluster.local:8000/api/v1/alertmanager
+  webhookUrl: "http://cloudforge.default.svc.cluster.local:8000/api/v1/alertmanager"
+
+# 可观测性 CRD（需先安装 kube-prometheus-stack）
+observability:
+  serviceMonitor:
+    enabled: false         # 创建 ServiceMonitor，让 Prometheus 自动发现 /metrics
+  prometheusRule:
+    enabled: false         # 创建 PrometheusRule（3 条告警规则）
+
+# Grafana Dashboard 自动注入（kube-prometheus-stack 的 sidecar 会扫含 grafana_dashboard: "1" 标签的 ConfigMap）
+grafanaDashboard:
+  enabled: false

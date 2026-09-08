@@ -1,0 +1,37 @@
+{{- /*
+  Alertmanager 配置（通过 Secret 挂载）
+  告警流：PrometheusRule → Prometheus → Alertmanager → Webhook 接收端
+  配置要点：
+    - group_by alertname：同一类告警合并发送，不刷屏
+    - critical 告警会抑制（inhibit）warning 同类型告警，避免一个问题发两条
+    - 默认 receiver=webhook：演示环境指向 CloudForge 自身的接收端点，生产换企业微信/钉钉/飞书
+*/ -}}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "cloudforge.fullname" . }}-alertmanager
+  labels:
+    {{- include "cloudforge.labels" . | nindent 4 }}
+stringData:
+  alertmanager.yaml: |
+    global:
+      resolve_timeout: 5m          # 告警恢复 5 分钟后发送 resolved 通知
+    route:
+      group_by: ['alertname']
+      group_wait: 30s              # 同类告警首批等待 30s 合并
+      group_interval: 5m           # 同一组 5 分钟后再发增量
+      repeat_interval: 1h          # 未解决告警每小时重复提醒
+      receiver: 'webhook'
+    receivers:
+      - name: 'webhook'
+        webhook_configs:
+          # 演示环境默认指向 CloudForge 应用自身的接收端点（--set alertmanager.webhookUrl 覆盖）
+          - url: {{ .Values.alertmanager.webhookUrl | quote }}
+            send_resolved: true
+      - name: 'null'                # 调试用：静默所有告警，把 route.receiver 改 null 即可
+    inhibit_rules:
+      - source_match:
+          severity: 'critical'
+        target_match:
+          severity: 'warning'
+        equal: ['alertname']        # critical 触发时抑制同 alertname 的 warning

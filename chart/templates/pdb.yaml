@@ -1,0 +1,18 @@
+{{- /*
+  PDB：Pod 中断预算
+  防止 kubelet 节点维护、驱逐等操作一次性杀掉所有 Pod
+  minAvailable=1 意味着任何时候至少保留 1 个可用副本
+*/ -}}
+{{- if .Values.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "cloudforge.fullname" . }}
+  labels:
+    {{- include "cloudforge.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      app: {{ include "cloudforge.name" . }}
+{{- end }}

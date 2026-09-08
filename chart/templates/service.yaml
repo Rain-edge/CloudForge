@@ -1,0 +1,21 @@
+{{- /*
+  主 Service：匹配 selector app=cloudforge（主版本 + 金丝雀版本都会被匹配）
+  要精确分流使用 Ingress weight 或 ServiceMonitor，不能靠 Service
+*/ -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "cloudforge.fullname" . }}
+  labels:
+    {{- include "cloudforge.labels" . | nindent 4 }}
+    app: {{ include "cloudforge.name" . }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    app: {{ include "cloudforge.name" . }}
+    component: stable    # 精确匹配主版本（金丝雀 component=canary 由 service-canary 单独承载）
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: 8000
+      protocol: TCP
+      name: http
