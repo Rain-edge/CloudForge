@@ -15,7 +15,7 @@ replicaCount: 2
 #   repository=<dockerhub-user>/cloudforge、tag=<short-sha>、pullPolicy=IfNotPresent
 image:
   repository: emeduo/cloudforge
-  tag: 24c9f5b
+  tag: 4171926
   pullPolicy: IfNotPresent    # 本地存在则不拉取；不存在时回退远端拉取
 
 # 对外 Service
@@ -75,7 +75,7 @@ canary:
   enabled: false           # 开关：是否创建金丝雀 Deployment/Service/Ingress
   weight: 0                # Nginx 切给金丝雀的流量权重（0-100）
   replicas: 1              # 金丝雀副本数
-  tag: 24c9f5b              # 金丝雀镜像 tag，一般设置为新版本 short sha
+  tag: 4171926              # 金丝雀镜像 tag，一般设置为新版本 short sha
 
 # Alertmanager Webhook 接收端（templates/alertmanager-config.yaml 使用）
 # 演示环境默认指向 CloudForge 应用自身的接收端点（同 namespace 用 Service 短名即可）
