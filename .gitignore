@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+
+# Environment
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+*.tar
+
+# Terraform
+terraform/.terraform/
+terraform/*.tfstate*
+
+# Helm charts
+chart/charts/*.tgz
+
+# Test
+.pytest_cache/
+*.junit.xml
+htmlcov/
+
+# Local tooling / scratch
+.workbuddy/
+.reasonix/
+IDEA.md
+/summary.json
