@@ -19,7 +19,7 @@ curl http://localhost:8000/health   # {"status":"ok","db":"connected"}
 1. **POSTGRES_PASSWORD 报错**：compose 里写 `POSTGRES_PASSWORD: cloudforge` 会被 YAML 当成数组解析，启动直接失败。加引号 `"cloudforge"` 解决。
 2. **asyncpg / bcrypt 编译太慢**：Alpine 镜像在国内网络下编译 C 扩展能等半小时。现在改多阶段构建（docker/Dockerfile）：编译只在 builder 阶段发生，runtime 直接复制编译产物，运行镜像体积和启动不受影响；asyncpg / cryptography / uvloop 等关键包已有 musllinux wheel，一般无需源码编译。若未来新增无 musllinux wheel 的依赖导致 builder 编译变慢，可把 builder 与 runtime 一起切回 python:3.11-slim（两阶段必须同一种 libc，不能混用）。
 3. **拉镜像慢**：Dockerfile 里加了阿里云镜像源，Debian 源也一并换了。
-4. **Docker Desktop 代理坑**：之前配了 `127.0.0.1:7890` 代理，不开梯子的时候反而报错。最后清掉代理配置，改用 Docker Engine 的 registry-mirrors。
+4. **Docker Desktop 代理问题**：之前配了 `127.0.0.1:7890` 代理，不开梯子的时候反而报错。最后清掉代理配置，改用 Docker Engine 的 registry-mirrors。
 
 ## K8s 部署：k3d + Helm
 
@@ -98,7 +98,7 @@ CPU 从 4% 飙到 152%～168%，HPA 触发扩容，两轮实测扩容路径分�
 
 ## 实验记录（面试数据备份）
 
-重跑实验时照此操作并记录结果，把数据存档到仓库（截图或 summary 文件），面试被追问时能拿出证据。
+重跑实验时照此操作并记录结果，把数据存档到仓库。
 
 ### 0. 镜像体积存档（2026-08-27 实测）
 
@@ -201,7 +201,7 @@ kubectl logs -l app=cloudforge --since=5m | grep alertmanager_webhook_received
 ```
 
 实测：推送 HTTP 200，两个 Pod 共收到 21 条 `alertmanager_webhook_received`（含 trace_id/span_id）。
-排查中踩的坑：
+排查中遇到的问题：
 1. **chart 的 alertmanager Secret 不被 kube-prometheus-stack 引用**——它的 Alertmanager 只认自己生成的 Secret，需注入脚本
 2. **webhookUrl 短名跨 namespace 解析失败**：Alertmanager 在 monitoring，`cloudforge:8000` 解析不到（no such host），默认值已改 FQDN
 3. **`kubectl logs deploy/xxx` 只随机选一个 Pod**：多副本时查不到 webhook 记录是假象，要用 `-l` 或逐个 Pod 查
