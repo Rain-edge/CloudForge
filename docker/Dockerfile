@@ -1,7 +1,7 @@
 # CloudForge 应用镜像 — 多阶段构建版（builder 编译 → runtime 精简运行）
 #
 # 为什么改成多阶段：
-#   - 旧版单阶段 python:3.11-slim 同时携带编译工具链（gcc/libpq-dev），镜像约 300MB
+#   - 旧版单阶段 python:3.11-slim 同时携带编译工具链（gcc/libpq-dev），镜像约 487MB
 #   - 多阶段把"编译期依赖"和"运行期依赖"分离：runtime 只保留运行需要的库
 #   - builder 用 alpine + 编译工具链，把依赖装进 site-packages；runtime 纯复制，不装任何编译器
 #

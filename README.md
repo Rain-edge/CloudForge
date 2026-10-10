@@ -67,10 +67,10 @@ curl http://localhost:8000/health   # {"status":"ok","db":"connected"}
 
 | 验证项 | 结果 |
 |--------|------|
-| k6 压测（50 VU / 90s） | 错误率 0%，峰值 28 RPS |
+| k6 压测（50 VU / 90s） | 错误率 0%，平均 22.7 RPS |
 | HPA 扩缩容 | CPU 打至 152%/70% → 副本自动 2→3→5→6，压测结束冷却缩回 2，全程零干预 |
 | 金丝雀灰度 | weight 10/50/100 实测分流 10%/48%/100%，逐请求计数 |
-| 异常回滚 | weight=0 秒级摘流（≤2s），回滚期间 63 个请求零失败 |
+| 异常回滚 | weight=0 秒级摘流（≤2s），回滚期间 60 个请求零失败 |
 | 告警链路 | 推送测试告警 → Alertmanager → webhook → 应用日志落 `alertmanager_webhook_received`（含 trace_id） |
 
 > 压测 p95 为 1.57s（阈值 500ms 未达标）——逐层定位为 WSL2/k3d overlay 网络并发开销 +

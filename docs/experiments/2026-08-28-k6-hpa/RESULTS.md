@@ -101,7 +101,7 @@ JSON 日志携带 trace_id/span_id/request_id，Grafana 可经 Loki derivedField
 
 ## 9. ArgoCD GitOps + selfHeal 实测
 
-- 安装 argo/argo-cd（helm，NodePort 模式），应用 `argocd/cloudforge-app.yaml`（repoURL=github.com/Rain-edge/CloudForge, targetRevision=master, path=chart, selfHeal+prune）
+- 安装 argo/argo-cd（helm，NodePort 模式），应用 `argocd/cloudforge-app.yaml`（repoURL=github.com/Rain-edge/CloudForge, targetRevision=main, path=chart, selfHeal+prune）
 - ArgoCD 自动同步部署到 cloudforge namespace（应用 2 副本 + PG + Redis 全部 Running，零手动 kubectl）
 - **selfHeal 实测**（argocd-selfheal-watch.log）：19:34:54 `kubectl scale --replicas=1` 制造偏离 → **19:35:00（6 秒内）自动恢复为 2** → 19:35:05 就绪。零人工干预
 
