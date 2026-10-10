@@ -20,8 +20,8 @@ FROM python:3.11-alpine AS builder
 # apk 源切到阿里云镜像（国内机器加速；外网机器也能自动回退官方源）
 RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 
-# pip 也切到阿里云镜像，加速国内下载
-RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/
+# pip 切清华 TUNA 镜像（国内加速；阿里源对刚发的新包偶发同步不全）
+RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple/
 
 WORKDIR /build
 
